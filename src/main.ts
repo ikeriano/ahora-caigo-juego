@@ -14,6 +14,7 @@ import { TOP } from './set3d';
 import { loadOpts, saveOpts, Opts } from './options';
 import { CREDITOS, VERSION, creditosFinal } from './credits';
 import { cons, RIVALES, PRESENTADOR_DEF } from './concursantes';
+import { lector, lineasLectura, hablado } from './lectura';
 import { historia, lineasHistoria } from './historia';
 import { lineasPruebas, lineasEleccion, planPruebas } from './pruebas';
 import { lineasVoz, VOCES } from './concursantes';
@@ -35,7 +36,7 @@ let originales = localStorage.getItem('ac_orig') === '1';
 let opts: Opts;
 
 async function boot() {
-  await loadManifest(); initAudio(); crowd.init(); await voice.load(); initCustomAudio();
+  await loadManifest(); initAudio(); crowd.init(); await voice.load(); lector.init(); initCustomAudio();
   eng = new Engine($('c3d') as HTMLCanvasElement, imgUrl(costume('Menu', 1).f)); publico.bind(eng);
   { const o0 = loadOpts(isMobile ? 'media' : 'alta'); eng.showAudience = o0.gradas; }
   eng.setTheme(themeById(themeId));
@@ -48,10 +49,10 @@ async function boot() {
     const out = new Map<string, { t: string; v?: string; h: string }>();
     const add = (t: string, v?: string) => { const h = voice.key(t, v); if (!out.has(h)) out.set(h, { t, v, h }); };
     allLines().forEach(t => add(t)); lineasVoz().forEach(l => add(l.t, l.v)); lineasHistoria().forEach(t => add(t)); lineasPruebas().forEach(t => add(t)); lineasEleccion().forEach(t => add(t));
-    return [...out.values()];
+    return [...out.values(), ...lineasLectura()];
   };
   (window as any).__voces = VOCES; (window as any).__planPruebas = planPruebas;
-  Object.assign(window as any, { __cons: cons, __eng: eng, __hud: hud, __st: st, __panel: panel, THREE, __startMode: startMode, __menu: showMenu, __allLines: allLines, __voice: voice, __hashText: hashText, __audio: audio, __custom: { setCustomAudio, clearCustomAudio, customInfo, customReady }, __publico: publico, __crowd: crowd, __publicoLog: publicoLog, __estimateBeat: estimateBeat });
+  Object.assign(window as any, { __cons: cons, __eng: eng, __hud: hud, __st: st, __panel: panel, THREE, __startMode: startMode, __menu: showMenu, __allLines: allLines, __voice: voice, __hashText: hashText, __audio: audio, __custom: { setCustomAudio, clearCustomAudio, customInfo, customReady }, __publico: publico, __crowd: crowd, __lector: lector, __lineasLectura: lineasLectura, __hablado: hablado, __publicoLog: publicoLog, __estimateBeat: estimateBeat });
   $('btnMenu').onclick = (e) => { e.stopPropagation(); if (session) { if (confirm('¿Volver al menú? Se perderá la partida.')) stopMode(); } else showMenu('main'); };
   const lui = setupLightsUI(eng);
   $('btnLuces').onclick = (e) => { e.stopPropagation(); lui.toggle(); };
@@ -170,12 +171,16 @@ function showMenu(sc: Screen = 'main') {
       const l = document.createElement('label'); l.textContent = label; r.append(l, b, sl); return r;
     };
     col.append(tog('🎵 Música', 'music', 'musicVol'), musicaCabecera(), tog('🔊 Efectos', 'sfx', 'sfxVol'), opcionesPublico(tog));
-    const onoff = (label: string, k: 'voz' | 'chistes') => {
+    const onoff = (label: string, k: 'voz' | 'chistes' | 'lee') => {
       const r = document.createElement('div'); r.className = 'orow'; const l = document.createElement('label'); l.textContent = label;
       const b = document.createElement('button'); const upd = () => { b.className = 'tbtn' + (opts[k] ? ' sel' : ''); b.textContent = opts[k] ? 'Sí' : 'No'; };
       b.onclick = (e) => { e.stopPropagation(); opts[k] = !opts[k]; upd(); applyOpts(); audio.play('Tecla'); }; upd(); r.append(l, b); return r;
     };
-    col.append(onoff('🎤 Voz del presentador', 'voz'), onoff('😄 Chistes del presentador', 'chistes'), opcionesConcursantes());
+    // lectura de las preguntas (v1.5)
+    const lv = document.createElement('div'); lv.className = 'orow'; lv.id = 'rowLeeVel'; const lvl = document.createElement('label'); lvl.textContent = '⏩ Velocidad de lectura'; lv.appendChild(lvl);
+    for (const [v, t] of [['normal', 'Normal'], ['rapida', 'Rápida']] as const) { const b = document.createElement('button'); b.className = 'tbtn' + (opts.leeVel === v ? ' sel' : ''); b.textContent = t; b.dataset.v = v; b.onclick = (e) => { e.stopPropagation(); opts.leeVel = v; applyOpts(); audio.play('Tecla'); lv.querySelectorAll('button').forEach(x => x.classList.toggle('sel', (x as HTMLElement).dataset.v === v)); }; lv.appendChild(b); }
+    const lee = onoff('📖 El presentador lee las preguntas', 'lee'); lee.id = 'rowLee';
+    col.append(onoff('🎤 Voz del presentador', 'voz'), lee, lv, onoff('😄 Chistes del presentador', 'chistes'), opcionesConcursantes());
     const q = document.createElement('div'); q.className = 'orow'; const ql = document.createElement('label'); ql.textContent = '✨ Calidad gráfica'; q.appendChild(ql);
     for (const v of ['baja', 'media', 'alta'] as const) { const b = document.createElement('button'); b.className = 'tbtn' + (opts.quality === v ? ' sel' : ''); b.textContent = v[0].toUpperCase() + v.slice(1); b.onclick = (e) => { e.stopPropagation(); opts.quality = v; applyOpts(); showMenu('options'); }; q.appendChild(b); }
     const f = document.createElement('div'); f.className = 'orow'; const fl = document.createElement('label'); fl.textContent = '⛶ Pantalla completa'; f.appendChild(fl);
@@ -269,7 +274,7 @@ async function toggleFullscreen() {
     else { await document.documentElement.requestFullscreen({ navigationUI: 'hide' } as any); try { await (screen as any).orientation?.lock?.('landscape'); } catch { } }
   } catch { hud.toast('Tu navegador no permite pantalla completa aquí', 2500); }
 }
-function applyOpts() { audio.setLevels(opts); crowd.setLevel(opts.publico, opts.publicoVol); voice.enabled = opts.voz; voice.jokes = opts.chistes; if (eng.quality !== opts.quality) eng.setQuality(opts.quality); eng.setAudienceVisible(opts.gradas); saveOpts(opts); }
+function applyOpts() { lector.on = opts.lee; lector.rapida = opts.leeVel === 'rapida'; if (!opts.lee || !opts.voz) lector.stop(); audio.setLevels(opts); crowd.setLevel(opts.publico, opts.publicoVol); voice.enabled = opts.voz; voice.jokes = opts.chistes; if (eng.quality !== opts.quality) eng.setQuality(opts.quality); eng.setAudienceVisible(opts.gradas); saveOpts(opts); }
 
 /** Opciones › Público: sonido (sí/no + volumen) y si se ve el público en las gradas */
 function opcionesPublico(tog: (label: string, k: 'publico', vk: 'publicoVol', id?: string) => HTMLElement) {
@@ -362,7 +367,7 @@ function resetScene() {
   eng.resetPositions();
   eng.studio.holes.forEach((_, i) => eng.studio.setHoleColor(i, i === 0 ? 0xffffff : 0xffffff));
 }
-function stopMode() { if (session) session.alive = false; session = null; menuMusic = false; showMenu('play'); }
+function stopMode() { lector.stop(); if (session) session.alive = false; session = null; menuMusic = false; showMenu('play'); }
 
 // ------------------------------------------------------------------ MODOS
 async function startMode(mode: string, sub?: any) {

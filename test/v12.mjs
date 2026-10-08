@@ -6,6 +6,8 @@ const P = 'previews/'
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] })
 const p = await b.newPage()
+// v1.5: estas pruebas son anteriores a la lectura de preguntas (se prueba aparte en v13 lectura): se juega sin lectura
+await p.evaluateOnNewDocument(() => { try { const o = JSON.parse(localStorage.getItem('ac3d_opts') || '{}'); o.lee = false; localStorage.setItem('ac3d_opts', JSON.stringify(o)) } catch { } })
 await p.setUserAgent('Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36')
 await p.setViewport({ width: +W, height: +H, deviceScaleFactor: 1, isMobile: true, hasTouch: true, isLandscape: true })
 const errors = []

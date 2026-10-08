@@ -15,6 +15,7 @@ import { gesture } from './people';
 import { L, pick, fraseNum } from './lines';
 import { cons } from './concursantes';
 import { publico } from './publico';
+import { lector, textoPregunta, type Lectura } from './lectura';
 
 export type DuelResult = 'win' | 'lose';
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
@@ -57,8 +58,11 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
   const clocks = { me: T, bot: W.__botClock || T };
   let turn: 'me' | 'bot' = W.__meFirst ? 'me' : 'bot';
   let running = false;
+  let lect: Lectura | null = null;
+  /** el presentador lee la pregunta (no se relee la pregunta pasada con comodín) */
+  const leer = (q: Q) => { lect = lector.leer(textoPregunta(q), { delay: 350 }); W.__duel.lecturas++; return lect; };
   const bar = duelBar(opp); bar.set(turn, clocks.me, clocks.bot);
-  W.__duel = { clocks, get turn() { return turn; }, get running() { return running; }, skill: k, opp, log: [] as string[] };
+  W.__duel = { clocks, get turn() { return turn; }, get running() { return running; }, skill: k, opp, log: [] as string[], lecturas: 0, get leyendo() { return !!lect?.leyendo; } };
   const log = (t: string) => W.__duel.log.push(t);
   panel.showBg(false); panel.showClock(true); panel.setTime(Math.floor(clocks[turn]), clocks[turn] % 1);
   let last = performance.now(); const warned = { me: 99, bot: 99 };
@@ -77,11 +81,14 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
   const newQ = (): Q => P.bank.next(o.training ? 'normal' : (P.rodadas || 'normal') as any);
 
   /** Turno del bot. ok = acierta; tiempo = se le acaba el reloj */
-  const botTurn = async (q: Q): Promise<'ok' | 'tiempo'> => {
+  const botTurn = async (q: Q, pasada = false): Promise<'ok' | 'tiempo'> => {
     cams.opp(eng, opp, 0.9); eng.face(bot, eng.player.root.position);
     while (true) {
       panel.stopInput(); audio.play('SomPalavra@Gcpgt1'); panel.setQuestion(q); panel.botSlots('', 'bot', '💭 Pensando…');
-      if (!running) { await s.w(700); running = true; }
+      // su reloj arranca cuando el presentador termina de leer (si venía corriendo tras un «¡Paso!», sigue)
+      const lq = pasada ? null : leer(q); pasada = false;
+      if (!running) { const t0 = performance.now(); if (lq) await s.until(() => !lq.leyendo); await s.until(() => performance.now() - t0 >= 700); running = true; }
+      else if (lq) { await s.until(() => !lq.leyendo || clocks.bot <= 0); if (clocks.bot <= 0) return 'tiempo'; }
       const stuck = Math.random() < (W.__botForce === 'fail' ? 1 : W.__botForce === 'win' ? 0 : lerp(0.30, 0.08, k));
       const wrong = W.__botForce ? false : Math.random() < lerp(0.35, 0.08, k);
       const think = lerp(7.5, 2.8, k) * rnd(0.7, 1.35) * (W.__botForce === 'win' ? 0.4 : 1);
@@ -116,7 +123,7 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
         if (!await botWait(think * 0.5)) return 'tiempo';
       }
       if (!await type(ans)) return 'tiempo';
-      running = false; log('bot-ok');
+      running = false; lector.stop(); log('bot-ok');
       panel.botSlots(ans, 'ok'); audio.play('QuemFicaEmPé-Acerto'); publico.aplauso(1.6, 0.45); await panel.reveal(); gesture(bot, 'arriba', 1.2);
       hud.toast(`${cons.rival(opp)} acierta`, 1100);
       await s.w(1100); panel.hideQuestion(250); return 'ok';
@@ -124,7 +131,7 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
   };
 
   /** Turno del concursante */
-  const meTurn = async (q: Q): Promise<'ok' | 'pasaCom' | 'pasa' | 'tiempo'> => {
+  const meTurn = async (q: Q, pasada = false): Promise<'ok' | 'pasaCom' | 'pasa' | 'tiempo'> => {
     cams.duel(eng, opp, 0.9);
     panel.stopInput(); audio.play('SomPalavra@Gcpgt1'); panel.setQuestion(q);
     if (!o.training || P.vidas > 0) showVidas(P.vidas, !!P.vidaExtra);
@@ -132,9 +139,12 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
     const com = P.vidas > 0;
     panel.showPasa(true, () => { if (!res) res = P.vidas > 0 ? 'pasaCom' : 'pasa'; }, com ? 'PASAR <small>(comodín)</small>' : 'PASAR ⏭');
     panel.ask().then(ok => { if (ok && !res) res = 'ok'; });
-    if (!running) { await s.w(600); running = true; }
+    // se puede escribir mientras lee, pero el reloj no corre hasta que termina la lectura
+    // (tras PASAR sin comodín el reloj ya venía corriendo y sigue)
+    const lq = pasada ? null : leer(q);
+    if (!running) { const t0 = performance.now(); if (lq) await s.until(() => !!res || !lq.leyendo); await s.until(() => !!res || performance.now() - t0 >= 600); if (!res) running = true; }
     await s.until(() => !!res || clocks.me <= 0);
-    panel.showPasa(false);
+    lector.stop(); panel.showPasa(false);
     if (!res) { running = false; panel.stopInput(); audio.play('DropM.mp3'); publico.ooh(0.8); await panel.reveal(); return 'tiempo'; }
     if (res === 'ok') {
       running = false; log('me-ok'); panel.stopInput(); audio.play('QuemFicaEmPé-Acerto'); publico.aplauso(2.4, 0.7); await panel.reveal(); hud.toast('¡CORRECTO!', 1100);
@@ -149,7 +159,8 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
       await s.w(1800); st.hide('Painel', 330); await s.w(350); return 'pasaCom';
     }
     // sin comodines: otra pregunta y el reloj NO se para
-    log('me-pasa'); panel.stopInput(); audio.play('SomPalavra@Teclado27');
+    // (si pasas mientras lee, tu reloj arranca ya: pasar nunca sale gratis)
+    running = true; log('me-pasa'); panel.stopInput(); audio.play('SomPalavra@Teclado27');
     hud.say(pick(L.pasaSin), 1600);
     await panel.reveal(); await s.w(500); return 'pasa';
   };
@@ -161,20 +172,20 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
     let carry: Q | null = null;
     while (true) {
       bar.set(turn, clocks.me, clocks.bot);
-      const q = carry || newQ(); carry = null;
+      const pasada = !!carry; const q = carry || newQ(); carry = null;
       if (turn === 'bot') {
-        const r = await botTurn(q);
+        const r = await botTurn(q, pasada);
         if (r === 'tiempo') { running = false; bar.out('bot'); log('bot-tiempo'); audio.stopTag('clock'); panel.stopInput(); audio.play('DropM.mp3'); await panel.reveal(); { const f = fraseNum('botTiempo', opp); hud.say(f.bubble, 2200, eng.host.head, cons.presentador, { audio: f.audio }); } await s.w(1200); return 'win'; }
         turn = 'me';
       } else {
-        const r = await meTurn(q);
+        const r = await meTurn(q, pasada);
         if (r === 'tiempo') { bar.out('me'); log('me-tiempo'); return 'lose'; }
         if (r === 'pasaCom') { carry = q; turn = 'bot'; }
         else if (r === 'ok') turn = 'bot';
       }
     }
   } finally {
-    running = false; clearInterval(iv); audio.stopTag('clock'); panel.showPasa(false);
+    running = false; lector.stop(); clearInterval(iv); audio.stopTag('clock'); panel.showPasa(false);
     setTimeout(() => bar.remove(), 1200);
   }
 }

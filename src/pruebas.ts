@@ -15,6 +15,7 @@ import { TOP } from './set3d';
 import { Q, norm } from './questions';
 import { ENTRE_TRES, ADIVINA, CENTRAL, DAME_LETRA, SI_NO } from './bancos';
 import { canvasTex } from './tex';
+import { lector, textoPregunta, textoEntreTres, textoCategoria } from './lectura';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const W = window as any;
@@ -155,8 +156,10 @@ export async function entreTres(P: Programa, opp: number, o: { training?: boolea
       btns.forEach((b, i) => b.onclick = (e) => { e.stopPropagation(); choose(i); });
       const key = (e: KeyboardEvent) => { const d = '123'.indexOf(e.key); if (d >= 0) choose(d); };
       addEventListener('keydown', key);
-      await s.w(700);
-      const T = W.__e3Clock || 5; const t0 = performance.now();
+      // el presentador lee la pregunta y las tres opciones; el reloj de 5 s arranca al terminar (se puede elegir antes)
+      const lq = lector.leer(textoEntreTres(q), { delay: 300 }); W.__e3.lecturas = (W.__e3.lecturas || 0) + 1;
+      { const tw = performance.now(); await s.until(() => choice >= 0 || (!lq.leyendo && performance.now() - tw >= 700)); }
+      const T = W.__e3Clock || 5; const t0 = performance.now(); W.__e3.t0 = t0;
       // el bot decide
       const botAt = rnd(lerp(3.6, 1.3, k), lerp(4.6, 2.6, k)); const botOk = W.__botForce === 'fail' ? false : W.__botForce === 'win' ? true : Math.random() < lerp(0.62, 0.93, k);
       const botTimeout = !W.__botForce && Math.random() < lerp(0.08, 0.02, k);
@@ -167,7 +170,7 @@ export async function entreTres(P: Programa, opp: number, o: { training?: boolea
           if (turn === 'bot' && choice < 0 && !botTimeout && el >= botAt) { choice = botOk ? q[2] : (q[2] + 1 + Math.floor(Math.random() * 2)) % 3; }
           return choice >= 0 || el >= T;
         });
-      } finally { removeEventListener('keydown', key); }
+      } finally { removeEventListener('keydown', key); lector.stop(); }
       const ok = choice === q[2];
       btns.forEach((b, i) => { b.disabled = true; if (i === choice) b.classList.add(ok ? 'ok' : 'bad'); if (i === q[2]) b.classList.add('right'); });
       log.push(`${turn}:${choice < 0 ? 'tiempo' : ok ? 'ok' : 'mal'}`);
@@ -215,18 +218,21 @@ export async function adivina(P: Programa, opp: number, o: { training?: boolean 
       const key = (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') meBuzz(); };
       addEventListener('keydown', key);
       audio.play('SomPalavra@Gcpgt1'); await s.w(500);
-      const t0 = performance.now(); let shown = -1;
+      // el presentador lee la categoría y luego cada pista al aparecer; el reloj de juego se para mientras lee
+      let lq = lector.leer(textoCategoria(it.cat)); W.__adv.lecturas = 1;
+      let el = 0, last = performance.now(); let shown = -1; W.__adv.el = () => el;
       try {
         await s.until(() => {
-          const el = (performance.now() - t0) / 1000; $('advc').textContent = fmtClock(TOTAL - el); $('advc').classList.toggle('low', TOTAL - el < 4);
+          const now = performance.now(); if (!lq.leyendo) el += (now - last) / 1000; last = now;
+          $('advc').textContent = fmtClock(TOTAL - el); $('advc').classList.toggle('low', TOTAL - el < 4);
           const want = Math.min(4, Math.floor(el / PER));
-          while (shown < want) { shown++; W.__adv.clue = shown; const li = document.createElement('li'); li.textContent = it.pistas[shown]; $('advlist').appendChild(li); $('advbig').textContent = it.pistas[shown]; $('advbig').classList.remove('pop'); void $('advbig').offsetWidth; $('advbig').classList.add('pop'); audio.play('saltar', 0.6); }
+          if (shown < want && !lq.leyendo) { shown++; W.__adv.clue = shown; const li = document.createElement('li'); li.textContent = it.pistas[shown]; $('advlist').appendChild(li); $('advbig').textContent = it.pistas[shown]; $('advbig').classList.remove('pop'); void $('advbig').offsetWidth; $('advbig').classList.add('pop'); audio.play('saltar', 0.6); lq = lector.leer(it.pistas[shown], { delay: 150 }); W.__adv.lecturas++; }
           if (!buzz && el >= botAt) buzz = 'bot';
           if (!buzz && el >= TOTAL) buzz = 'bot'; // nadie pulsa: el oponente tiene que arriesgar
           return !!buzz;
         });
-      } finally { removeEventListener('keydown', key); }
-      ui.classList.add('buzzed'); const lateGuess = (performance.now() - t0) / 1000 >= TOTAL;
+      } finally { removeEventListener('keydown', key); lector.stop(); }
+      ui.classList.add('buzzed'); const lateGuess = el >= TOTAL;
       const q = qOculta('adv-' + idx, `${it.cat}: ${it.pistas.slice(0, shown + 1).join(' · ')}`, it.r);
       log.push(`buzz:${buzz}@${shown}`);
       if (buzz === 'me') {
@@ -315,6 +321,8 @@ export async function dameLetra(P: Programa, opp: number, o: { training?: boolea
       const frac = () => letras.filter(l => shown.has(l)).length / total;
       const usedTxt = () => { $('dlu').innerHTML = [...tried].map(l => `<span class="${shown.has(l) ? 'si' : 'no'}">${l}</span>`).join(''); };
       usedTxt(); ui.classList.remove('in'); void ui.offsetWidth; ui.classList.add('in'); audio.play('SomPalavra@Gcpgt1');
+      // el presentador lee SOLO la categoría (nunca la frase oculta); los turnos empiezan al terminar
+      D.fase = 'lee'; { const lq = lector.leer(textoCategoria(it[0]), { delay: 300 }); (D as any).lecturas = ((D as any).lecturas || 0) + 1; $('dlc').textContent = fmtClock(LIM); await s.until(() => !lq.leyendo); }
       const revelaTodo = () => tiles.forEach(t => { t.textContent = t.dataset.c!; t.classList.add('on'); });
       let ganador: 'me' | 'bot' | null = null;
       // umbral del oponente: con qué parte de la frase descubierta se atreve
@@ -431,8 +439,10 @@ export async function siNo(P: Programa, opp: number, o: { training?: boolean } =
       bS.onclick = (e) => { e.stopPropagation(); answer(true); }; bN.onclick = (e) => { e.stopPropagation(); answer(false); };
       const key = (e: KeyboardEvent) => { const kk = e.key.toLowerCase(); if (kk === 's' || kk === '1' || e.key === 'ArrowLeft') answer(true); if (kk === 'n' || kk === '2' || e.key === 'ArrowRight') answer(false); };
       addEventListener('keydown', key);
-      await s.w(600);
-      const T = W.__snClock || 5; const t0 = performance.now();
+      // el presentador lee la afirmación; el reloj de 5 s arranca al terminar (se puede responder antes)
+      const lq = lector.leer(q[0], { delay: 300 }); (S as any).lecturas = ((S as any).lecturas || 0) + 1;
+      { const tw = performance.now(); $('snc').textContent = fmtClock(W.__snClock || 5); await s.until(() => resp != null || (!lq.leyendo && performance.now() - tw >= 600)); }
+      const T = W.__snClock || 5; const t0 = performance.now(); (S as any).t0 = t0;
       const botAt = rnd(lerp(2.8, 1.0, k), lerp(3.8, 2.2, k));
       const botOk = W.__botForce === 'fail' ? false : W.__botForce === 'win' ? true : Math.random() < lerp(0.66, 0.95, k);
       const botTimeout = !W.__botForce && Math.random() < lerp(0.06, 0.01, k);
@@ -443,7 +453,7 @@ export async function siNo(P: Programa, opp: number, o: { training?: boolean } =
           if (turn === 'bot' && resp == null && !botTimeout && el >= botAt) resp = botOk ? q[1] : !q[1];
           return resp != null || el >= T;
         });
-      } finally { removeEventListener('keydown', key); }
+      } finally { removeEventListener('keydown', key); lector.stop(); }
       const ok = resp === q[1];
       bS.disabled = bN.disabled = true;
       if (resp != null) (resp ? bS : bN).classList.add(ok ? 'ok' : 'bad');
@@ -499,8 +509,10 @@ export async function eleccionCentral(c: Ctx): Promise<{ ganador: number; tiempo
     // bots: aciertan ~70 % con tiempos simulados
     const LIM = W.__elecLim || 20;
     const botT = names.map((_, i) => i === 0 ? null : (W.__elecBots === 'lento' ? null : Math.random() < 0.72 ? +rnd(W.__elecBots === 'rapido' ? 1.2 : 4.0, 16).toFixed(2) : null));
-    let mine: number | null = null; let done = false; panel.ask().then(r => { if (r && !done) { mine = +((performance.now() - t0) / 1000).toFixed(2); done = true; } });
-    const t0 = performance.now();
+    let t0 = Infinity; // el reloj arranca al terminar de leer la pregunta (si aciertas mientras lee: 0,05 s)
+    let mine: number | null = null; let done = false; panel.ask().then(r => { if (r && !done) { mine = +Math.max(0.05, (performance.now() - t0) / 1000).toFixed(2); done = true; } });
+    { const lq = lector.leer(cq[0], { delay: 300 }); (W2 as any).leida = true; (ui.querySelector('#ec') as HTMLElement).textContent = fmtClock(LIM); await s.until(() => done || !lq.leyendo); lector.stop(); }
+    t0 = performance.now(); (W2 as any).t0 = t0;
     await s.until(() => { const el = (performance.now() - t0) / 1000; (ui.querySelector('#ec') as HTMLElement).textContent = fmtClock(LIM - el); if (el >= LIM) done = true; return done; });
     panel.stopInput(); await panel.reveal().catch(() => { });
     const tiempos = [mine, ...botT.slice(1)]; W2.tiempos = tiempos; W2.fase = 'resultado'; (ui.querySelector('#ec') as HTMLElement).style.display = 'none';

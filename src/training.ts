@@ -9,6 +9,7 @@ import { L, fill } from './lines';
 import { duelo1v1 } from './duelo';
 import { showVidas } from './prueba';
 import { publico } from './publico';
+import { lector, textoPregunta } from './lectura';
 import { PruebaId, tarjetaPrueba, jugarPrueba, eleccionCentral } from './pruebas';
 
 export type TrainKind = 'pruebas' | 'sintiempo' | 'gallina' | 'final' | 'huellas' | 'duelo' | 'entretres' | 'adivina' | 'dameletra' | 'sino' | 'eleccion';
@@ -39,7 +40,7 @@ export async function entrenamiento(c: Ctx, kind: TrainKind, originales: boolean
   if (kind === 'final') {
     hud.say(L.trFinal, 3500); await s.w(3000);
     const list: Q[] = []; for (let i = 0; i < 10; i++) list.push(P.bank.next('normal'));
-    const clock = { left: 120 }; const t0 = performance.now() + 2300;
+    const clock = { left: 120 }; const t0 = performance.now() + 2300; (window as any).__jfClock = clock;
     panel.showBg(true); panel.showClock(true); panel.setTime(120);
     const iv = setInterval(() => { const el = (performance.now() - t0) / 980; const nl = el < 0 ? 120 : Math.max(0, 120 - Math.floor(el)); if (nl !== clock.left) { clock.left = nl; if (nl === 10) audio.play('10', 1, 'clock'); } panel.setTime(clock.left); }, 100);
     let ac = 0;
@@ -66,7 +67,8 @@ export async function entrenamiento(c: Ctx, kind: TrainKind, originales: boolean
       const q = P.bank.next('normal'); panel.setQuestion(q);
       let res: any = null; panel.showPasa(true, () => { res = res || 'pasa'; });
       panel.ask().then(v => { if (v) res = res || 'ok'; });
-      await s.until(() => !!res); panel.showPasa(false); panel.stopInput();
+      lector.leer(textoPregunta(q), { delay: 300 });
+      await s.until(() => !!res); lector.stop(); panel.showPasa(false); panel.stopInput();
       if (res === 'ok') { audio.play('QuemFicaEmPé-Acerto'); publico.aplauso(2, 0.6); hud.toast('¡CORRECTO!', 1100); }
       await panel.reveal(); r = res;
     } else {

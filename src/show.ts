@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { lector, textoPregunta } from './lectura';
 import type { Engine } from './engine';
 import { Hud, Session, fmt } from './hud';
 import { Stage2D } from './stage2d';
@@ -310,11 +311,16 @@ export class Programa {
     panel.showPasa(final || this.vidas > 0, () => { if (!result) { result = 'pasa'; onPasa?.(); } }, 'PASAR ⏭');
     if (q.gallina) audio.playMusic('SuspenseDuelo', true);
     panel.ask().then(ok => { if (ok && !result) result = 'ok'; });
+    // el presentador lee la pregunta. En el Juego Final lee deprisa y el reloj de 2:00 NO se para (como en el programa);
+    // en el resto el reloj arranca al terminar la lectura (se puede escribir mientras lee)
+    const lect = lector.leer(textoPregunta(q), clock ? { rapida: true, delay: 150 } : { delay: 300 });
+    (window as any).__lect = lect;
     // reloj (como Relogio2: espera 1 s y resta 1 cada 0,98 s)
     let stopClock = () => { };
     if (!clock) {
-      let left = 30; const t0 = performance.now() + 1000;
+      let left = 30; let t0 = Infinity; const tq = performance.now();
       const iv = setInterval(() => {
+        if (t0 === Infinity) { if (lect.leyendo) { panel.setTime(30, 0); return; } t0 = Math.max(tq + 1000, performance.now() + 400); }
         const el = (performance.now() - t0) / 980; const nl = el < 0 ? 30 : Math.max(0, 30 - Math.floor(el) - 1);
         panel.setTime(nl, el < 0 ? 0 : 1 - (el % 1));
         if (nl !== left) { left = nl; if (left === 10) audio.play('10', 1, 'clock'); if (left === 5) audio.play('5', 1, 'clock'); }
@@ -322,7 +328,7 @@ export class Programa {
       }, 50);
       stopClock = () => { clearInterval(iv); audio.stopTag('clock'); };
     }
-    try { await s.until(() => !!result || (!!clock && clock.left <= 0)); } finally { stopClock(); }
+    try { await s.until(() => !!result || (!!clock && clock.left <= 0)); } finally { stopClock(); lect.stop(); }
     if (!result && clock && clock.left <= 0) result = 'tiempo';
     panel.showPasa(false);
     if (result === 'ok') { panel.stopInput(); audio.play('QuemFicaEmPé-Acerto'); publico.aplauso(final ? 1.4 : 2.2, final ? 0.5 : 0.65); await panel.reveal(); hud.toast('¡CORRECTO!', 1100); }
@@ -391,7 +397,7 @@ export class Programa {
     this.vidas = 0; showVidas(-1, false); await s.w(1500);
     eng.studio.setHoleColor(0, 0xffd23a);
     // reloj único de 2 minutos para las 10 preguntas
-    const clock = { left: 120 }; let started = false; let t0 = 0;
+    const clock = { left: 120 }; let started = false; let t0 = 0; (window as any).__jfClock = clock;
     panel.showBg(true); panel.showClock(true); panel.setTime(120);
     const iv = setInterval(() => {
       if (!started) return; const el = (performance.now() - t0) / 980; const nl = Math.max(0, 120 - Math.floor(el));

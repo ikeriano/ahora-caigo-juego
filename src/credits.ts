@@ -1,5 +1,5 @@
 import { cons, RIVALES } from './concursantes';
-export const VERSION = '1.4';
+export const VERSION = '1.5';
 // ======= Rótulos y créditos (editar aquí) =======
 export const CREDITOS = {
   hashtag: '#AhoraCaigo',

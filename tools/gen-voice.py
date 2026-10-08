@@ -10,6 +10,8 @@ lines = data['lines'] if isinstance(data, dict) else data
 VOCES = data.get('voces', {}) if isinstance(data, dict) else {}
 TTS = '/workspace/tts/'
 HOST = {'model': 'es_ES-davefx-medium', 'len': 0.86, 'pitch': 1.0}
+# argv[3] opcional: bitrate fijo (las preguntas leídas van a 32k para que el APK no crezca demasiado)
+BR = sys.argv[3] if len(sys.argv) > 3 else None
 idx_path = os.path.join(out, 'index.json')
 idx = json.load(open(idx_path)) if os.path.exists(idx_path) else {}
 keep = {l['h'] for l in lines}
@@ -28,7 +30,7 @@ def encode(l, v):
     wav = os.path.join(tmp, l['h'] + '.wav'); mp3 = os.path.join(out, l['h'] + '.mp3')
     af = 'acompressor=threshold=-18dB:ratio=3:attack=5:release=60,treble=g=3,volume=1.6,alimiter=limit=0.95'
     if abs(v.get('pitch', 1) - 1) > 0.01: af = f"rubberband=pitch={v['pitch']}," + af
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav, '-af', af, '-ac', '1', '-ar', '22050', '-b:a', '56k' if v is HOST else '48k', mp3], check=True)
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav, '-af', af, '-ac', '1', '-ar', '22050', '-b:a', BR or ('56k' if v is HOST else '48k'), mp3], check=True)
     d = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', mp3], capture_output=True, text=True).stdout.strip())
     os.remove(wav); return l['h'], round(d, 2)
 pool = ThreadPoolExecutor(4); futs = []
