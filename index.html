@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover,interactive-widget=resizes-content">
+<meta name="theme-color" content="#02040c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<title>¡Ahora Caigo! 3D</title>
+  <script type="module" crossorigin src="./assets/index-CEa-e5cn.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index--lwCinOP.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="c3d"></canvas>
+  <div id="touch"></div>
+  <div id="stage2d"><div id="stageBox"></div></div>
+  <div id="panel"><div id="panelBox"></div></div>
+  <div id="hud">
+    <div id="joy"><div id="joyKnob"></div></div>
+    <div id="vidas" class="ui"></div>
+    <div id="hashtag"></div>
+    <div id="bubble" class="hidden"><b>El Presentador</b><span></span></div>
+    <div id="lower3" class="hidden"></div>
+    <div id="credits" class="hidden"><div id="creditsRoll"></div></div>
+    <div id="toast" class="hidden"></div>
+    <div id="topbar" class="ui">
+      <button id="btnMenu" title="Menú">☰</button>
+      <button id="btnCam" title="Cámara">👁</button>
+      <button id="btnLuces" title="Luces">💡</button>
+      <button id="btnSkip" class="hidden">Saltar ⏭</button>
+    </div>
+    <div id="hint" class="hidden"></div>
+    <div id="actions" class="ui"></div>
+  </div>
+  <div id="menu"></div>
+  <div id="classicWrap" class="hidden"><iframe id="classic" allow="autoplay"></iframe><button id="classicBack" class="ui">⟵ Menú</button></div>
+  <div id="loading"><div class="spin"></div><p>Cargando el plató…</p></div>
+  <div id="rotate">Gira el móvil 📱↻</div>
+  <input id="kb" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" aria-label="Escribe las letras">
+</div>
+</body>
+</html>
