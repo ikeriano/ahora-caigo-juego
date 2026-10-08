@@ -40,6 +40,9 @@ export const CHISTES: Joke[] = [
   { t: 'Tranquilidad: el suelo del juego final es igual que el de antes. Igual de traicionero.', c: ['final'] },
   // Prime Time
   { t: 'Esta noche es Prime Time: hasta las trampillas se han puesto pajarita.', c: G, th: ['primetime'] },
+  { t: '¡Trescientos suscriptores! Si cada uno trae a un amigo, la próxima gala la hacemos en un estadio… con trescientas trampillas.', c: G, th: ['especial300'] },
+  { t: 'Este oponente ha caído tan rápido que no le ha dado tiempo ni a darle a la campanita.', c: ['caida'], th: ['especial300'] },
+  { t: 'Hoy el confeti es por los trescientos suscriptores… y las caídas, por el espectáculo.', c: ['caida', 'entre'], th: ['especial300'] },
   { t: 'En las galas especiales las caídas son más elegantes: con música, luces y confeti.', c: ['caida'], th: ['primetime'] },
   { t: 'He ensayado tanto para esta gala que hasta el suelo me aplaude… antes de abrirse.', c: G, th: ['primetime'] },
   { t: 'Hay tantos focos esta noche que los oponentes caen con gafas de sol.', c: ['caida', 'entre'], th: ['primetime'] },

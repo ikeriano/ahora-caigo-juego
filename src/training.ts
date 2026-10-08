@@ -6,8 +6,10 @@ import { TOP } from './set3d';
 import { gesture } from './people';
 import { fmt } from './hud';
 import { L, fill } from './lines';
+import { duelo1v1 } from './duelo';
+import { showVidas } from './prueba';
 
-export type TrainKind = 'pruebas' | 'sintiempo' | 'gallina' | 'final' | 'huellas';
+export type TrainKind = 'pruebas' | 'sintiempo' | 'gallina' | 'final' | 'huellas' | 'duelo';
 
 async function colocar(c: Ctx) {
   const e = c.eng; e.resetPositions(); e.walkMode(false);
@@ -17,10 +19,12 @@ async function colocar(c: Ctx) {
 export async function entrenamiento(c: Ctx, kind: TrainKind, originales: boolean) {
   const { eng, hud, s, panel } = c;
   await colocar(c);
+  hud.hashtag('#AhoraCaigoEntrena');
   const P = new Programa(c); P.noVidas = true; P.bank = new Bank(eng.theme.id, originales);
   let ok = 0, ko = 0, pas = 0;
   const upd = () => hud.score(`✔ ${ok} &nbsp; ✘ ${ko} &nbsp; ⏭ ${pas}`);
   if (kind === 'huellas') return huellas(c);
+  if (kind === 'duelo') return dueloEntreno(c, P);
   cams.player(eng); eng.cut(new THREE.Vector3(1.2, TOP + 2.4, 4.4), new THREE.Vector3(0, TOP + 0.7, 0));
   audio.playMusic('SuspenseDuelo', true, 0.6);
   upd();
@@ -81,4 +85,26 @@ async function huellas(c: Ctx) {
   }
   hud.score(`Total: ${fmt(state.placar)} puntos`, true);
   hud.say(L.trHuellasFin, 5000); await s.w(5000);
+}
+
+/** Duelo contra un oponente-bot (turnos, dos relojes, PASAR con comodín) sin caídas */
+async function dueloEntreno(c: Ctx, P: Programa) {
+  const { eng, hud, s, panel } = c;
+  const opp = (window as any).__trOpp || 1 + Math.floor(Math.random() * 10);
+  P.noVidas = false; P.vidas = 2; P.vidaExtra = 0; P.rodadas = (window as any).__trRonda || 4;
+  const o = eng.opps[opp - 1];
+  eng.face(eng.player, o.root.position); eng.face(o, eng.player.root.position);
+  eng.studio.setHoleColor(opp, eng.theme.accent);
+  cams.opp(eng, opp); gesture(o, 'saluda', 1.4);
+  hud.say(L.trDuelo, 3500); await s.w(3200);
+  audio.play('AhoraCaigo - ComeceDuelo.mp3'); hud.subs('AhoraCaigo - ComeceDuelo.mp3', false);
+  cams.duel(eng, opp, 1.4); await s.w(1800);
+  audio.playMusic('SuspenseDuelo', true, 0.6);
+  const r = await duelo1v1(P, opp, { training: true });
+  panel.hideAll(400); showVidas(-1, false); audio.stopMusic(0.6);
+  hud.score(r === 'win' ? '🏆 ¡Duelo ganado!' : '⏱ Duelo perdido', true);
+  gesture(r === 'win' ? eng.player : o, 'arriba', 2.5); gesture(eng.host, r === 'win' ? 'aplaude' : 'habla', 2.5);
+  cams.duel(eng, opp, 1.2);
+  hud.say(r === 'win' ? L.trDueloWin : L.trDueloLose, 4500); await s.w(4500);
+  eng.studio.setHoleColor(opp, 0xffffff);
 }

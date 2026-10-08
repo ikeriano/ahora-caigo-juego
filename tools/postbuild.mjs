@@ -1,7 +1,7 @@
 // Genera dist/sw.js con la lista de ficheros para jugar sin conexión
 import fs from 'fs'; import path from 'path'; import crypto from 'crypto';
 const dist = path.resolve('dist'); const files = [];
-const walk = d => { for (const f of fs.readdirSync(d)) { const p = path.join(d, f); if (fs.statSync(p).isDirectory()) walk(p); else files.push(path.relative(dist, p).split(path.sep).join('/')); } };
+const walk = d => { for (const f of fs.readdirSync(d)) { if (f.startsWith('.')) continue; const p = path.join(d, f); if (fs.statSync(p).isDirectory()) walk(p); else files.push(path.relative(dist, p).split(path.sep).join('/')); } };
 walk(dist);
 const core = files.filter(f => !f.startsWith('clasico/') && !f.startsWith('descargas/') && f !== 'sw.js');
 const h = crypto.createHash('md5'); core.forEach(f => h.update(f + fs.statSync(path.join(dist, f)).size)); const V = h.digest('hex').slice(0, 10);

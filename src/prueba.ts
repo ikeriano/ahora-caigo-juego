@@ -100,7 +100,7 @@ export class Panel {
     setTimeout(() => this.fit(), 350);
   }
   stopInput() {
-    this.active = false; this.resolve = null; this.input.blur(); this.slots.innerHTML = '';
+    this.active = false; this.resolve = null; this.input.blur(); this.slots.innerHTML = ''; this.pasaCb = null;
     if (AndroidKb) try { AndroidKb.hide(); } catch { }
     setTimeout(() => this.fit(), 350);
   }
@@ -113,6 +113,24 @@ export class Panel {
     }
     const tip = document.createElement('div'); tip.className = 'slot'; tip.style.cssText = 'width:auto;padding:0 12px;font-size:20px;background:linear-gradient(#ffe27a,#f39a12);color:#3a1a00';
     tip.textContent = '⌨'; tip.title = 'Abrir teclado'; this.slots.appendChild(tip);
+    this.addPasar();
+  }
+  /** Botón PASAR al lado de las casillas: queda justo encima del teclado del móvil cuando está abierto */
+  private pasaCb: (() => void) | null = null; private pasaLabel = 'PASAR';
+  private addPasar() {
+    if (!this.pasaCb) return;
+    const b = document.createElement('div'); b.className = 'slot pasar'; b.id = 'btnPasar'; b.innerHTML = this.pasaLabel; b.setAttribute('role', 'button');
+    // pointerdown sin foco: así el teclado del móvil no se cierra al tocarlo
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
+    b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); const cb = this.pasaCb; if (cb) { audio.play('Tecla'); cb(); } });
+    this.slots.appendChild(b);
+  }
+  /** Casillas del turno del oponente-bot (sin teclado): letras que va escribiendo, o «pensando…» */
+  botSlots(v: string, cls: 'bot' | 'bad' | 'ok' = 'bot', thinking = '') {
+    const n = this.q?.missing.length || 0;
+    this.slots.innerHTML = '';
+    for (let i = 0; i < n; i++) { const s = document.createElement('div'); s.className = 'slot ' + cls + (cls === 'bot' && i === v.length ? ' cur' : ''); s.textContent = v[i] || ''; this.slots.appendChild(s); }
+    if (thinking) { const t = document.createElement('div'); t.className = 'slot think'; t.textContent = thinking; this.slots.appendChild(t); }
   }
   private evaluating = false;
   onInput() {
@@ -131,9 +149,12 @@ export class Panel {
       }
     }
   }
-  showPasa(on: boolean, cb?: () => void) {
-    if (!on) { this.st.hide('Teclado27'); return; }
-    this.st.show('Teclado27', 1, { z: 21, click: cb, size: 150, cls: 'pasa' });
+  /** PASAR (duelos, Juego Final y entrenamiento). label: texto del botón */
+  showPasa(on: boolean, cb?: () => void, label = 'PASAR ⏭') {
+    this.st.hide('Teclado27');
+    this.pasaCb = on && cb ? cb : null; this.pasaLabel = label;
+    const old = this.slots.querySelector('#btnPasar'); old?.remove();
+    if (this.pasaCb && this.active) this.addPasar();
   }
   hideQuestion(fade = 300) { this.st.hide('Pergunta', fade); this.st.hide('Resposta', fade); if (this.txt) { const t = this.txt; t.style.transition = `opacity ${fade}ms`; t.style.opacity = '0'; setTimeout(() => t.remove(), fade); this.txt = null; } }
   hideAll(fade = 0) {

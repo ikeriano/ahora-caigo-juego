@@ -10,6 +10,13 @@ export const L = {
   ok: ['¡Correcto!', '¡Muy bien!', '¡Lo has clavado!'],
   pasa: ['¡Pasa! Turno de tu oponente…', 'Usas un comodín: ¡pasa la pregunta!'],
   tiempo: ['¡Se acabó el tiempo…!', '¡Oh, no! ¡Tiempo!'],
+  turnoBot: ['Empieza contestando el oponente {n}. ¡Cada uno con su reloj!', 'Primero contesta el oponente {n}. ¡Atentos al reloj!'],
+  turnoTu: ['¡Empiezas tú! Cada uno tiene su reloj.'],
+  pasaSin: ['¡Pasas! Otra pregunta… ¡y tu reloj sigue corriendo!', 'Pasas sin comodín: ¡el reloj no se para!'],
+  botTiempo: ['¡Al oponente {n} se le ha acabado el tiempo!', '¡Tiempo para el oponente {n}!'],
+  trDuelo: 'Entrenamiento de duelo: tú contra un oponente, por turnos y cada uno con su reloj. ¡Sin caídas!',
+  trDueloWin: '¡Has ganado el duelo! En el programa, tu oponente habría caído por la trampilla.',
+  trDueloLose: 'Esta vez ha ganado el oponente. ¡Prueba otra vez!',
   cero: 'Has tirado a los ocho… pero tu marcador está a cero. ¡Qué mala suerte!',
   plantas: '¡Te plantas! Te llevas la mitad de tus puntos.',
   final: '¡Juego Final! Diez preguntas en dos minutos. Si lo consigues, ¡doblas tu marcador!',
@@ -37,7 +44,7 @@ export function allLines(): string[] {
     const arr = Array.isArray(v) ? v : [v];
     for (const t of arr) { if (t.includes('{n}')) for (let n = 0; n <= 10; n++) out.add(fill(t, n)); else out.add(t); }
   }
-  for (const th of THEMES) { out.add(th.saludo); out.add(despedidaTexto(th)); }
+  for (const th of THEMES) { out.add(th.saludo); out.add(despedidaTexto(th)); (th.extra || []).forEach(x => out.add(x)); }
   for (const j of CHISTES) out.add(j.t);
   return [...out];
 }

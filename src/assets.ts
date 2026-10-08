@@ -53,9 +53,14 @@ class Audio {
     return { dur: b.duration, done: new Promise(r => { s.onended = () => { this.playing.delete(s); r(); }; }) };
   }
   /** segundos desde que empezó la música actual (para sincronizar subtítulos de las voces del .sb3) */
+  /** Registra un AudioBuffer ya decodificado con un nombre propio (p. ej. 'custom:cabecera'); null lo borra */
+  setBuffer(name: string, b: AudioBuffer | null) { if (b) this.buffers.set(name, Promise.resolve(b)); else this.buffers.delete(name); }
+  hasBuffer(name: string) { return this.buffers.has(name); }
+  musicName() { return this.musicSrc?.name || null; }
   musicTime(name: string) { return this.musicSrc && this.musicSrc.name === name ? this.ctx.currentTime - this.musicT0 : -1; }
   musicT0 = 0;
   load(name: string) {
+    if (name.startsWith('custom:')) return this.buffers.get(name) || Promise.resolve(null); // audio elegido por el usuario (solo en su dispositivo)
     const f = this.file(name); if (!f) return Promise.resolve(null);
     if (!this.buffers.has(f)) this.buffers.set(f, fetch(`${BASE}sb3/snd/${f}.mp3`).then(r => r.arrayBuffer()).then(b => new Promise<AudioBuffer>((res, rej) => this.ctx.decodeAudioData(b, res, rej))).catch(() => null));
     return this.buffers.get(f)!;
@@ -72,15 +77,16 @@ class Audio {
     return new Promise(r => { s.onended = () => { this.playing.delete(s); r(); }; });
   }
   /** Música de fondo: sustituye a la anterior (como "parar otros programas del escenario") */
-  async playMusic(name: string, loop = false, vol = 1) {
+  async playMusic(name: string, loop = false, vol = 1, fadeIn = 0) {
     this.stopMusic(0.25);
     const b = await this.load(name); if (!b) return;
     const s = this.ctx.createBufferSource(); s.buffer = b; s.loop = loop; const g = this.ctx.createGain(); g.gain.value = vol;
+    if (fadeIn > 0) { const t = this.ctx.currentTime; g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + fadeIn); }
     s.connect(g); g.connect(this.music); s.start(); this.musicSrc = { src: s, gain: g, name }; this.musicT0 = this.ctx.currentTime;
   }
   stopMusic(fade = 0.2) {
     const m = this.musicSrc; if (!m) return; this.musicSrc = null;
-    const t = this.ctx.currentTime; m.gain.gain.setValueAtTime(m.gain.gain.value, t); m.gain.gain.linearRampToValueAtTime(0, t + fade); m.src.stop(t + fade + 0.05);
+    const t = this.ctx.currentTime; m.gain.gain.cancelScheduledValues(t); m.gain.gain.setValueAtTime(m.gain.gain.value, t); m.gain.gain.linearRampToValueAtTime(0, t + fade); m.src.stop(t + fade + 0.05);
   }
   stopAll() { this.stopMusic(0.1); for (const s of this.playing) { try { s.stop(); } catch { } } this.playing.clear(); }
   /** Aplausos sintetizados (ruido filtrado a ráfagas): no hay aplausos en el sb3 */

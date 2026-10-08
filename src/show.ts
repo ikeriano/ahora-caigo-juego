@@ -7,11 +7,12 @@ import { audio } from './assets';
 import { Bank, Q } from './questions';
 import { TOP } from './set3d';
 import { gesture } from './people';
-import { cabecera, despedida } from './intro';
+import { cabecera, despedida, CAB_MUSIC } from './intro';
 import { confettiBurst } from './decor';
 import { L, pick, fill } from './lines';
 import { Chistes, JokeCtx } from './jokes';
 import { voice } from './voice';
+import { duelo1v1 } from './duelo';
 
 export interface Ctx { eng: Engine; hud: Hud; st: Stage2D; panel: Panel; s: Session }
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -164,15 +165,17 @@ export class Programa {
     eng.resetPositions(); eng.opps.forEach(o => o.root.visible = true);
     // ---- CABECERA ----
     eng.lights?.event('intro');
-    await cabecera(eng, hud, s, eng.theme.id === 'primetime');
-    // ---- el Presentador da la bienvenida ----
-    const INTRO = 'AhoraCaigo - Intro.mp3'; const it = audio.musicTime(INTRO);
-    if (it >= 0 && it < 16.5) audio.stopMusic(0.4); // cabecera saltada: se corta la voz
+    await cabecera(eng, hud, s, !!eng.theme.festivo);
+    hud.hashtag(eng.theme.hashtag || '#AhoraCaigo');
+    // ---- el Presentador da la bienvenida (la sintonía termina por debajo) ----
+    // la música de la cabecera (la del jugador o la del .sb3) se funde al terminar la cabecera
+    if (audio.musicTime(CAB_MUSIC) >= 0) audio.stopMusic(audio.musicTime(CAB_MUSIC) < 26.5 ? 0.8 : 2.0);
     { const hp = eng.host.root.position; eng.cut(V(hp.x + 0.9, TOP + 1.7, hp.z + 3.2), V(hp.x, TOP + 1.3, hp.z)); eng.face(eng.host, V(hp.x + 1.2, 0, hp.z + 6)); }
-    gesture(eng.host, 'saluda', 2.2);
-    // si la voz original de la cabecera sigue sonando, el presentador la termina en plano
-    await s.until(() => { const t = audio.musicTime(INTRO); return t < 0 || t > 23.9; });
+    gesture(eng.host, 'saluda', 2.2); audio.applause(2.5, 0.5);
+    await s.w(900);
     gesture(eng.host, 'habla', 2.5); await this.talk(eng.theme.saludo, 3000);
+    for (const x of eng.theme.extra || []) { gesture(eng.host, 'habla', 2.5); await this.talk(x, 3000); }
+    if (eng.theme.festivo) { confettiBurst(eng.studio, V(-2, TOP + 2, 1)); confettiBurst(eng.studio, V(2, TOP + 2, 1)); audio.applause(2.5, 0.6); }
     audio.play('TemaCurto');
     await this.joke('intro');
     await s.w(600);
@@ -196,7 +199,7 @@ export class Programa {
       await moneda(this.c, opp, this);
       audio.playMusic('SuspenseDuelo', true); await transicao(this.c);
       await s.w(1500);
-      await telaPlacar(this.c, this.moedas, this.placar, eng.theme.id === 'primetime');
+      await telaPlacar(this.c, this.moedas, this.placar, !!eng.theme.festivo);
       if (this.rodadas === 8) break;
       await s.w(600);
       if (!this.jokeDone) { cams.wide(eng, 1.0); await this.joke('entre'); }
@@ -247,36 +250,28 @@ export class Programa {
     st.show('MenuEscolha2', 1, { z: 35, fade: 170 }); cams.duel(eng, opp, 1.6); eng.lights?.event('duelo');
     await s.w(2000); audio.playMusic('SuspenseDuelo', true); await s.w(1000);
     st.hide('MenuEscolha2', 330); await s.w(1000);
-    while (true) {
-      const r = await this.pregunta(this.rodadas, false);
-      if (r === 'ok') {
-        this.acertos++; eng.lights?.event('acierto');
-        await s.w(1000);
-        // el oponente cae
-        panel.hideAll(500); showVidas(-1, false); await s.w(500);
-        audio.playMusic('TrilhaCurta@Gcpgt1'); gesture(eng.host, 'senala', 2); hud.say(pick(L.ok), 2000);
-        cams.opp(eng, opp, 1.2);
-        await s.w(3000); audio.stopMusic(); audio.play('AcerteOuCaia SuspEdit', 1, 'susp');
-        await s.w(3000);
-        await this.caida(opp, o);
-        audio.stopTag('susp'); await s.w(500); audio.playMusic('TrilhaCurta@Stage');
-        gesture(eng.player, 'arriba', 2); cams.player(eng, 1.2);
-        if (eng.theme.id === 'primetime') confettiBurst(eng.studio, V(0, TOP + 2, 0));
-        await s.w(1500);
-        if (Math.random() < 0.5) { this.jokeDone = true; await this.joke('caida'); } else this.jokeDone = false;
-        await s.w(1200);
-        return 'win';
-      }
-      if (r === 'pasa') {
-        audio.play('SomPalavra@Teclado27'); this.vidas--; panel.hideAll(300);
-        st.show('Painel', 1, { z: 46, fade: 330, from: 1.5 }); hud.say(pick(L.pasa), 2200);
-        showVidas(this.vidas, !!this.vidaExtra);
-        gesture(o, 'habla', 2); await s.w(2000); st.hide('Painel', 330); await s.w(400);
-        continue;
-      }
-      // tiempo agotado: cae el concursante
-      return this.perder();
+    // duelo de verdad: el oponente-bot también juega (turnos alternos, un reloj para cada uno)
+    const r = await duelo1v1(this, opp);
+    if (r === 'win') {
+      this.acertos++; eng.lights?.event('acierto');
+      await s.w(800);
+      // el oponente cae
+      panel.hideAll(500); showVidas(-1, false); await s.w(500);
+      audio.playMusic('TrilhaCurta@Gcpgt1'); gesture(eng.host, 'senala', 2); hud.say(pick(L.ok), 2000);
+      cams.opp(eng, opp, 1.2);
+      await s.w(3000); audio.stopMusic(); audio.play('AcerteOuCaia SuspEdit', 1, 'susp');
+      await s.w(3000);
+      await this.caida(opp, o);
+      audio.stopTag('susp'); await s.w(500); audio.playMusic('TrilhaCurta@Stage');
+      gesture(eng.player, 'arriba', 2); cams.player(eng, 1.2);
+      if (eng.theme.festivo) confettiBurst(eng.studio, V(0, TOP + 2, 0));
+      await s.w(1500);
+      if (Math.random() < 0.5) { this.jokeDone = true; await this.joke('caida'); } else this.jokeDone = false;
+      await s.w(1200);
+      return 'win';
     }
+    // se te acabó el tiempo: cae el concursante
+    return this.perder();
   }
 
   /** gcpergunta + pergunta + teclado + reloj. Devuelve ok | pasa | tiempo */
@@ -291,7 +286,7 @@ export class Programa {
     panel.setQuestion(q);
     if (!final && !this.noVidas) showVidas(this.vidas, !!this.vidaExtra);
     let result = null as any as ('ok' | 'pasa' | 'tiempo' | null);
-    panel.showPasa(final || this.vidas > 0, () => { if (!result) { result = 'pasa'; onPasa?.(); } });
+    panel.showPasa(final || this.vidas > 0, () => { if (!result) { result = 'pasa'; onPasa?.(); } }, 'PASAR ⏭');
     if (q.gallina) audio.playMusic('SuspenseDuelo', true);
     panel.ask().then(ok => { if (ok && !result) result = 'ok'; });
     // reloj (como Relogio2: espera 1 s y resta 1 cada 0,98 s)
@@ -395,7 +390,7 @@ export class Programa {
     } finally { clearInterval(iv); audio.stopTag('clock'); }
     panel.hideAll(500); st.hide('PlacarFinal', 300); await s.w(1000);
     this.placar *= 2;
-    audio.stopAll(); audio.playMusic('AhoraCaigo - Fim.mp3');
+    audio.stopAll(); audio.playMusic('TrilhaCurta@Stage');
     eng.lights?.event('ganador'); confettiBurst(eng.studio, V(0, TOP + 1, 0)); confettiBurst(eng.studio, V(-3, 2, -3)); confettiBurst(eng.studio, V(3, 2, -3));
     gesture(eng.player, 'arriba', 3); gesture(eng.host, 'aplaude', 3); cams.player(eng, 1.2);
     hud.say(L.ganado, 4000);

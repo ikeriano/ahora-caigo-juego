@@ -12,12 +12,13 @@ import { entrenamiento, TrainKind } from './training';
 import { logoCanvas } from './logo';
 import { TOP } from './set3d';
 import { loadOpts, saveOpts, Opts } from './options';
-import { CREDITOS } from './credits';
+import { CREDITOS, VERSION } from './credits';
 import { L, allLines } from './lines';
 import { voice, hashText } from './voice';
 import { setupLightsUI } from './lightsui';
 import { isMobile } from './engine';
 import { gesture } from './people';
+import { initCustomAudio, customInfo, setCustomAudio, clearCustomAudio, customReady, CUSTOM } from './customaudio';
 
 const $ = (id: string) => document.getElementById(id)!;
 const q = new URLSearchParams(location.search);
@@ -28,13 +29,13 @@ let originales = localStorage.getItem('ac_orig') === '1';
 let opts: Opts;
 
 async function boot() {
-  await loadManifest(); initAudio(); await voice.load();
+  await loadManifest(); initAudio(); await voice.load(); initCustomAudio();
   eng = new Engine($('c3d') as HTMLCanvasElement, imgUrl(costume('Menu', 1).f));
   eng.setTheme(themeById(themeId));
   opts = loadOpts(isMobile ? 'media' : 'alta'); eng.quality = 'x' as any; applyOpts();
   setupControls(eng, $('touch'));
   hud = new Hud(eng); st = new Stage2D($('stage2d'), $('stageBox')); panel = new Panel();
-  Object.assign(window as any, { __eng: eng, __hud: hud, __st: st, __panel: panel, THREE, __startMode: startMode, __menu: showMenu, __allLines: allLines, __voice: voice, __hashText: hashText });
+  Object.assign(window as any, { __eng: eng, __hud: hud, __st: st, __panel: panel, THREE, __startMode: startMode, __menu: showMenu, __allLines: allLines, __voice: voice, __hashText: hashText, __audio: audio, __custom: { setCustomAudio, clearCustomAudio, customInfo, customReady } });
   $('btnMenu').onclick = (e) => { e.stopPropagation(); if (session) { if (confirm('¿Volver al menú? Se perderá la partida.')) stopMode(); } else showMenu('main'); };
   const lui = setupLightsUI(eng);
   $('btnLuces').onclick = (e) => { e.stopPropagation(); lui.toggle(); };
@@ -47,7 +48,7 @@ async function boot() {
     M.sprites[n]?.c.forEach(c => pre.push(imgUrl(c.f)));
   for (let i = 1; i <= 10; i++) M.sprites['MenuEscolhaop' + i]?.c.forEach(c => pre.push(imgUrl(c.f)));
   preloadImages(pre.slice(0, 200));
-  ['SomPalavra', 'TrilhaCurta', 'AhoraCaigo - Intro.mp3', 'Moeda', 'DropM.mp3', 'AhoraCaigo - Queda.mp3', 'QuemFicaEmPé-Acerto', 'Erro', 'saltar', 'fairydust'].forEach(n => audio.preload([n]));
+  ['SomPalavra', 'TrilhaCurta', 'Trilha', 'Moeda', 'DropM.mp3', 'AhoraCaigo - Queda.mp3', 'QuemFicaEmPé-Acerto', 'Erro', 'saltar', 'fairydust'].forEach(n => audio.preload([n]));
   $('loading').classList.add('hidden');
   const m = q.get('mode');
   if (m) startMode(m, q.get('sub') as any); else showMenu((q.get('screen') as Screen) || 'title');
@@ -82,7 +83,7 @@ function showMenu(sc: Screen = 'main') {
   const th = themeById(themeId);
   if (sc === 'title') {
     const t = document.createElement('div'); t.className = 'title';
-    const lc = logoCanvas(560, 500); lc.className = 'tlogo';
+    const lc = logoCanvas(560, 500, { variant: themeId }); lc.className = 'tlogo';
     const sub = document.createElement('div'); sub.className = 'tsub'; sub.textContent = 'El juego';
     const tap = document.createElement('div'); tap.className = 'ttap'; tap.textContent = 'Toca para empezar';
     t.append(lc, sub, tap); menu.appendChild(t);
@@ -92,7 +93,7 @@ function showMenu(sc: Screen = 'main') {
   }
   const box = document.createElement('div'); box.className = 'mbox';
   const logo = document.createElement('div'); logo.className = 'logo';
-  const lc = logoCanvas(560, 500); lc.className = 'mlogo'; logo.appendChild(lc);
+  const lc = logoCanvas(560, 500, { variant: th.id }); lc.className = 'mlogo'; logo.appendChild(lc);
   const tag = document.createElement('div'); tag.className = 'mtag'; tag.textContent = th.id === 'normal' ? 'EL JUEGO · 3D' : th.emoji + ' ' + (th.banner || 'Especial ' + th.name); logo.appendChild(tag);
   const col = document.createElement('div'); col.className = 'col ui';
   if (sc === 'main') {
@@ -123,7 +124,8 @@ function showMenu(sc: Screen = 'main') {
     col.appendChild(h2('Entrenamiento (sin caídas)'));
     const T = (k: TrainKind, a: string, b: string, cls = '') => btn(a, b, cls, () => startMode('entrenamiento', k));
     col.append(
-      T('pruebas', 'Pruebas con reloj', '30 segundos por pregunta, como en el duelo', 'gold'),
+      T('duelo', 'Duelo contra un oponente', 'Por turnos, cada uno con su reloj, con PASAR', 'gold'),
+      T('pruebas', 'Pruebas con reloj', '30 segundos por pregunta'),
       T('sintiempo', 'Pruebas sin tiempo', 'Tómatelo con calma'),
       T('gallina', 'Palabra gallina', 'Las preguntas especiales del duelo 5'),
       T('final', 'Juego final', '10 preguntas en 2 minutos'),
@@ -144,7 +146,7 @@ function showMenu(sc: Screen = 'main') {
       sl.oninput = () => { opts[vk] = +sl.value / 100; applyOpts(); }; sl.onchange = () => audio.play('Tecla');
       const l = document.createElement('label'); l.textContent = label; r.append(l, b, sl); return r;
     };
-    col.append(tog('🎵 Música', 'music', 'musicVol'), tog('🔊 Efectos', 'sfx', 'sfxVol'));
+    col.append(tog('🎵 Música', 'music', 'musicVol'), musicaCabecera(), tog('🔊 Efectos', 'sfx', 'sfxVol'));
     const onoff = (label: string, k: 'voz' | 'chistes') => {
       const r = document.createElement('div'); r.className = 'orow'; const l = document.createElement('label'); l.textContent = label;
       const b = document.createElement('button'); const upd = () => { b.className = 'tbtn' + (opts[k] ? ' sel' : ''); b.textContent = opts[k] ? 'Sí' : 'No'; };
@@ -164,9 +166,9 @@ function showMenu(sc: Screen = 'main') {
     const p = document.createElement('div'); p.className = 'mtext';
     p.innerHTML = `<p><b>Objetivo:</b> eres el concursante de la trampilla central. Hay <b>10 oponentes</b> y tienes que tirar a <b>8</b> para llegar al final. ¡Puedes conseguir hasta 600.000 puntos!</p>
 <p><b>1. Elige huella.</b> Cada huella esconde a un oponente. Tócala para retarle a un duelo.</p>
-<p><b>2. El duelo.</b> Aparece una pregunta con casillas vacías: escribe <b>las letras que faltan</b> con el teclado del móvil (o del ordenador). Tienes <b>30 segundos</b>. Si te equivocas puedes volver a intentarlo mientras quede tiempo.</p>
-<p><b>3. ¡Ahora cae!</b> Si aciertas, tu oponente cae por su trampilla. Si se acaba el tiempo… ¡caes tú!</p>
-<p><b>PASA:</b> empiezas con 2 comodines. Con «PASA» le das el turno a tu oponente y te sale otra pregunta, pero gastas un comodín.</p>
+<p><b>2. El duelo.</b> Juegas contra el oponente elegido, <b>por turnos</b>: empieza él. Cada uno tiene <b>su reloj de 30 segundos</b> y solo corre el del que tiene el turno. En tu turno escribe <b>las letras que faltan</b> con el teclado del móvil (o del ordenador); si te equivocas puedes volver a intentarlo mientras te quede tiempo. Al acertar, el turno pasa al otro.</p>
+<p><b>3. ¡Ahora cae!</b> El primero que se queda sin tiempo cae por su trampilla: si es tu oponente, sigues; si eres tú… ¡adiós!</p>
+<p><b>PASAR:</b> empiezas con 2 comodines. Con un comodín, «PASAR» le manda esa pregunta a tu oponente. Sin comodines, te sale otra pregunta pero tu reloj sigue corriendo. En el Juego Final, «PASAR» salta a la siguiente pregunta y los 2 minutos siguen corriendo.</p>
 <p><b>4. La moneda.</b> Tras cada duelo ganado eliges un lado de la moneda: puedes ganar puntos, una vida extra… o perderlo todo, el doble o la mitad.</p>
 <p><b>5. La decisión.</b> Si tiras a los 8 oponentes puedes <b>plantarte</b> (te llevas la mitad) o jugar el <b>Juego Final</b>: 10 preguntas en 2 minutos. Si las aciertas todas, ¡doblas tu marcador!</p>
 <p><b>Controles 3D:</b> joystick a la izquierda para andar, arrastra a la derecha para mirar (PC: WASD + ratón). 👁 cambia entre primera y tercera persona. ☰ vuelve al menú. «Saltar» pasa la cabecera y la despedida.</p>`;
@@ -174,10 +176,53 @@ function showMenu(sc: Screen = 'main') {
   } else if (sc === 'credits') {
     col.classList.add('text'); col.append(backBtn('main'), h2('Créditos'));
     const p = document.createElement('div'); p.className = 'mtext';
-    p.innerHTML = CREDITOS.final.map(([a, b]) => `<p><b>${a}</b><br>${b.join('<br>')}</p>`).join('') + `<p><b>${CREDITOS.produccion}</b></p><p class="small">Juego de fans sin ánimo de lucro. «¡Ahora Caigo!» es un formato de televisión de sus respectivos dueños; este juego no está afiliado a ninguna cadena. El presentador es un personaje virtual inventado.</p>`;
+    p.innerHTML = CREDITOS.final.map(([a, b]) => `<p><b>${a}</b><br>${b.join('<br>')}</p>`).join('') + `<p><b>Especial 300 suscriptores</b><br>Dedicado a los suscriptores del canal de YouTube «Ikeriano el campeón 2»</p><p><b>${CREDITOS.produccion}</b></p><p class="small">Versión ${VERSION}</p><p class="small">Juego de fans sin ánimo de lucro. «¡Ahora Caigo!» es un formato de televisión de sus respectivos dueños; este juego no está afiliado a ninguna cadena. El presentador es un personaje virtual inventado.</p>`;
     col.append(p);
   }
+  const ver = document.createElement('div'); ver.className = 'mver'; ver.textContent = 'v' + VERSION; box.appendChild(ver);
   box.append(logo, col); menu.appendChild(box);
+}
+
+/** Opciones › Música de la cabecera: un audio del propio dispositivo (se queda solo en él) */
+let probando: ReturnType<typeof setTimeout> | null = null;
+let customMsg = '';
+function musicaCabecera() {
+  const box = document.createElement('div'); box.className = 'ocustom'; box.id = 'optCustom';
+  const t = document.createElement('div'); t.className = 'olabel'; t.textContent = '🎶 Música de la cabecera'; box.appendChild(t);
+  const name = document.createElement('div'); name.className = 'oname';
+  const ci = customInfo();
+  name.innerHTML = ci ? `🎵 <b></b>` : 'Sin audio propio: suena la música del minijuego';
+  if (ci) (name.querySelector('b') as HTMLElement).textContent = ci.name;
+  const row = document.createElement('div'); row.className = 'orow obtns';
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'audio/*'; inp.id = 'customFile'; inp.style.display = 'none';
+  const pick = document.createElement('button'); pick.className = 'tbtn sel'; pick.id = 'btnElegirAudio'; pick.textContent = '📂 Elegir audio de mi dispositivo';
+  pick.onclick = (e) => { e.stopPropagation(); audio.play('Tecla'); inp.value = ''; inp.click(); };
+  inp.onchange = async () => {
+    const f = inp.files?.[0]; if (!f) return;
+    name.textContent = '⏳ Cargando «' + f.name + '»…';
+    try { await setCustomAudio(f); customMsg = '✅ ¡Audio guardado en este dispositivo!'; }
+    catch (err) { customMsg = '⚠️ ' + (err as Error).message; }
+    if (screen === 'options') showMenu('options');
+  };
+  const test = document.createElement('button'); test.className = 'tbtn'; test.id = 'btnProbarAudio'; test.textContent = '▶ Probar';
+  const stopTest = () => { if (probando) { clearTimeout(probando); probando = null; } audio.stopMusic(0.6); menuMusic = false; setTimeout(() => { if (!session && audio.musicName() == null) { audio.playMusic('Trilha', true, 0.45); menuMusic = true; } }, 700); test.textContent = '▶ Probar'; };
+  test.onclick = (e) => {
+    e.stopPropagation(); if (probando) { stopTest(); return; }
+    audio.playMusic(CUSTOM, false, 1, 0.5); test.textContent = '⏹ Parar';
+    probando = setTimeout(stopTest, 12000);
+  };
+  const del = document.createElement('button'); del.className = 'tbtn'; del.id = 'btnQuitarAudio'; del.textContent = '🗑 Quitar';
+  del.onclick = async (e) => { e.stopPropagation(); audio.play('Tecla'); if (probando) stopTest(); await clearCustomAudio(); customMsg = 'Audio quitado: vuelve la música del minijuego'; showMenu('options'); };
+  if (!ci) { test.disabled = true; del.disabled = true; }
+  row.append(pick, test, del, inp);
+  const note = document.createElement('p'); note.className = 'onote'; note.textContent = 'El audio se queda solo en este dispositivo; no se sube ni se comparte.';
+  const note2 = document.createElement('p'); note2.className = 'onote small'; note2.textContent = 'Suena en la cabecera y en la despedida del Programa completo, con los mismos movimientos de cámara.';
+  box.append(name, row);
+  if (customMsg) { const m = document.createElement('div'); m.className = 'omsg'; m.textContent = customMsg; customMsg = ''; box.appendChild(m); }
+  box.append(note, note2);
+  // si todavía se está cargando el audio guardado, refrescar cuando esté
+  if (!ci) customReady(8000).then(ok => { if (ok && screen === 'options' && document.getElementById('optCustom') === box) showMenu('options'); });
+  return box;
 }
 
 async function instalar() {

@@ -84,6 +84,6 @@ export class Hud {
     e.className = 'score' + (big ? ' bigprize' : ''); e.innerHTML = html;
   }
   skip(fn: (() => void) | null) { const b = $('btnSkip'); if (!fn) b.classList.add('hidden'); else { b.classList.remove('hidden'); b.onclick = (e) => { e.stopPropagation(); fn(); }; } }
-  reset() { voice.stop(); this.subsToken++; this.hideBubble(); this.hideToast(); this.hint(null); this.hashtag(null); this.clearLowerThirds(); this.hideCredits(); this.actions([]); this.score(null); this.skip(null); $('vidas').innerHTML = ''; }
+  reset() { voice.stop(); this.subsToken++; this.hideBubble(); this.hideToast(); this.hint(null); this.hashtag(null); this.clearLowerThirds(); this.hideCredits(); this.actions([]); this.score(null); this.skip(null); $('vidas').innerHTML = ''; document.getElementById('duelBar')?.remove(); }
 }
 export const fmt = (n: number) => Math.floor(n).toLocaleString('es-ES');

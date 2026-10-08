@@ -9,7 +9,7 @@ html, body { margin: 0; height: 100%; background: #02040c; overflow: hidden; fon
 .spr.click { cursor: pointer; pointer-events: auto; }
 .spr.click:active { filter: brightness(1.3); }
 #panel { z-index: 7; }
-#panelBox .pslots { position: absolute; left: 180px; width: 600px; top: 0; display: flex; justify-content: center; gap: 10px; pointer-events: auto; }
+#panelBox .pslots { position: absolute; left: 80px; width: 800px; top: 0; display: flex; justify-content: center; gap: 10px; pointer-events: auto; }
 .slot { width: 58px; height: 64px; border-radius: 8px; background: linear-gradient(#fff, #c9d3e6); color: #1b2f8a; font: 900 44px/64px Arial, Roboto, sans-serif; text-align: center; box-shadow: 0 0 0 3px #5fb0ff, 0 4px 10px rgba(0,0,0,.6); }
 .slot.cur { box-shadow: 0 0 0 4px #ffd23a, 0 0 18px #ffd23a; animation: blink 1s infinite; }
 .slot.bad { background: linear-gradient(#ff8a8a, #c42020); color: #fff; }
@@ -164,3 +164,38 @@ body.outro #topbar button { font-size: 13px; padding: 5px 10px; opacity: .85; }
 #lightsUI .lslider input { width: 100%; height: 100%; margin: 0; opacity: .55; accent-color: #1450e6; }
 @media (max-height: 480px) { #lightsUI .lpanel { top: 46px !important; } #lightsUI .ltabs { top: 4px; } #lightsUI .ltabs button { padding: 4px 6px; font-size: 11px; } }
 #topbar #btnLuces.on { background: linear-gradient(#ffe27a, #f39a12); color: #3a1a00; }
+
+/* ---- Opciones › Música de la cabecera (audio del propio dispositivo) ---- */
+#menu .ocustom { background: rgba(0,10,40,.72); border: 2px solid rgba(255,210,58,.55); border-radius: 14px; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+#menu .ocustom .olabel { font: 900 clamp(13px, 2.2vw, 17px) Arial, Roboto, sans-serif; color: #ffd23a; }
+#menu .ocustom .oname { font: 700 clamp(11px, 1.8vw, 14px) Arial, Roboto, sans-serif; color: #e8f0ff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#menu .ocustom .oname b { color: #9affb0; }
+#menu .ocustom .obtns { background: none; border: 0; padding: 0; flex-wrap: wrap; gap: 6px; }
+#menu .ocustom .obtns .tbtn { flex: 1 1 auto; min-width: 0; padding: 6px 8px; }
+#menu .ocustom .obtns .tbtn:first-child { flex-basis: 100%; }
+#menu .ocustom .onote { margin: 0; font: 700 clamp(10px, 1.6vw, 13px)/1.3 Arial, Roboto, sans-serif; color: #cfe2ff; }
+#menu .ocustom .onote.small { font-weight: 600; color: #9fb4d8; font-size: clamp(9.5px, 1.4vw, 12px); }
+@media (max-height: 480px) { #menu .ocustom { padding: 5px 10px; gap: 4px; } }
+/* ---- Duelo 1 contra 1: relojes de los dos concursantes y turno ---- */
+#duelBar { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); display: flex; gap: 10px; z-index: 11; pointer-events: none; }
+#duelBar .dc { min-width: 128px; padding: 4px 12px 5px; border-radius: 14px; background: rgba(5,15,50,.82); border: 3px solid #1fa84a; text-align: center; box-shadow: 0 3px 12px rgba(0,0,0,.6); transition: border-color .2s, transform .2s, box-shadow .2s; }
+#duelBar .dc b { display: block; font: 900 11px Arial, Roboto, sans-serif; letter-spacing: .06em; color: #cfe2ff; text-transform: uppercase; }
+#duelBar .dc span { font: 900 26px/1 'Courier New', monospace; color: #fff; text-shadow: 0 0 8px #39c8ff; }
+#duelBar .dc i { display: block; font: 800 10px Arial, sans-serif; font-style: normal; color: #ffd23a; height: 12px; }
+#duelBar .dc.on { border-color: #ff9a1a; transform: scale(1.08); box-shadow: 0 0 18px #ff9a1a; }
+#duelBar .dc.on span { text-shadow: 0 0 10px #ff6a00; }
+#duelBar .dc.low span { color: #ff5a4a; }
+#duelBar .dc.out { border-color: #ff2a2a; box-shadow: 0 0 18px #ff2a2a; }
+#duelBar .vs { align-self: center; font: 900 18px Arial, sans-serif; color: #ffd23a; text-shadow: 0 2px 3px #000; }
+@media (max-height: 480px) { #duelBar .dc { min-width: 104px; padding: 2px 10px 3px; } #duelBar .dc span { font-size: 21px; } }
+body.kb-open #duelBar { top: 2px; transform: translateX(-50%) scale(.85); transform-origin: top center; }
+/* botón PASAR junto a las casillas del teclado */
+.slot.pasar { width: auto; padding: 0 14px; font: 900 24px/64px Arial, Roboto, sans-serif; background: linear-gradient(#ff7a5a, #c4201a); color: #fff; cursor: pointer; box-shadow: 0 0 0 3px #ffd0c0, 0 4px 10px rgba(0,0,0,.6); white-space: nowrap; }
+.slot.pasar small { font-size: 15px; opacity: .9; }
+.slot.pasar:active { transform: scale(.94); filter: brightness(1.2); }
+.slot.bot { background: linear-gradient(#ffe8b0, #f0b030); color: #4a2400; }
+.slot.think { width: auto; padding: 0 16px; font: 900 22px/64px Arial, Roboto, sans-serif; background: rgba(5,15,50,.85); color: #ffd23a; box-shadow: 0 0 0 3px #ff9a1a; }
+.pturn { position: absolute; left: 0; right: 0; top: 4px; text-align: center; font: 900 22px Arial, Roboto, sans-serif; color: #ffd23a; text-shadow: 0 2px 3px #000; z-index: 6; pointer-events: none; }
+#menu .mver { position: absolute; left: max(10px, env(safe-area-inset-left)); bottom: 6px; font: 800 12px Arial, Roboto, sans-serif; color: #cfe2ff; opacity: .8; text-shadow: 0 1px 2px #000; pointer-events: none; }
+#menu .ocustom .omsg { font: 800 clamp(11px, 1.8vw, 14px) Arial, Roboto, sans-serif; color: #9affb0; }
+#menu .ocustom .obtns .tbtn { font-size: clamp(11px, 1.7vw, 14px); }

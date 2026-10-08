@@ -101,6 +101,7 @@ function textBanner(txt: string, color: string, w = 6, h = 1) {
   const t = canvasTex(1024, 170, (g, W, H) => {
     g.fillStyle = 'rgba(0,0,0,0)'; g.clearRect(0, 0, W, H);
     g.font = '900 120px Arial, Roboto, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const fw = g.measureText(txt).width; if (fw > W - 40) g.font = `900 ${Math.floor(120 * (W - 40) / fw)}px Arial, Roboto, sans-serif`;
     g.lineWidth = 10; g.strokeStyle = 'rgba(0,0,0,0.8)'; g.strokeText(txt, W / 2, H / 2 + 6);
     g.fillStyle = color; g.shadowColor = color; g.shadowBlur = 24; g.fillText(txt, W / 2, H / 2 + 6);
   });
@@ -171,6 +172,26 @@ export function buildDecor(st: Studio, th: Theme) {
       for (const [i, a] of front.entries()) place(umbrella(cols[i % 3]), 4.9, a);
       for (let k = 0; k < 6; k++) { const ball = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 10), new THREE.MeshLambertMaterial({ color: cols[k % 3] })); ball.position.copy(polar(4.4, (k % 2 ? 1 : -1) * D(10 + k * 3), 0.25)); R.add(ball); }
       const sun = new THREE.Mesh(new THREE.CircleGeometry(1, 30), new THREE.MeshBasicMaterial({ color: 0xffe060 })); sun.position.set(0, 6.4, -11.2); R.add(sun);
+      break;
+    }
+    case 'especial300': {
+      // gráfico dorado «300» sobre la pantalla central + dos «300» girando a los lados, confeti y pancarta de celebración
+      const t300 = canvasTex(1024, 512, (g, W, H) => {
+        g.clearRect(0, 0, W, H); g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.font = '900 330px "Arial Black", Arial, sans-serif';
+        const lg = g.createLinearGradient(0, 60, 0, 380); lg.addColorStop(0, '#fff6c8'); lg.addColorStop(0.5, '#ffd23a'); lg.addColorStop(1, '#a8740a');
+        g.lineJoin = 'round'; g.lineWidth = 26; g.strokeStyle = '#3a0606'; g.strokeText('300', W / 2, 220);
+        g.shadowColor = '#ffcf40'; g.shadowBlur = 40; g.fillStyle = lg; g.fillText('300', W / 2, 220);
+        g.shadowBlur = 0; g.font = '900 78px Arial, Roboto, sans-serif'; g.lineWidth = 12; g.strokeText('SUSCRIPTORES', W / 2, 440); g.fillStyle = '#ffffff'; g.fillText('SUSCRIPTORES', W / 2, 440);
+      });
+      const big = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 2.1), new THREE.MeshBasicMaterial({ map: t300, transparent: true, depthWrite: false })); big.position.set(0, 6.45, -11.3); R.add(big);
+      const spin: THREE.Mesh[] = [];
+      for (const sgn of [-1, 1]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.2), new THREE.MeshBasicMaterial({ map: t300, transparent: true, depthWrite: false, side: THREE.DoubleSide })); m.position.copy(polar(9.2, sgn * D(150), 5.6)); R.add(m); spin.push(m); }
+      st.anim.push((dt, t) => { big.scale.setScalar(1 + Math.sin(t * 2.2) * 0.04); spin.forEach((m, i) => { m.rotation.y = t * 0.9 + i * Math.PI; m.position.y = 5.6 + Math.sin(t * 1.5 + i) * 0.2; }); });
+      const b = textBanner('ESPECIAL 300 SUSCRIPTORES · Ikeriano el campeón 2', '#ffe08a', 7.2, 0.6); b.position.set(0, 1.0, -10.95); R.add(b);
+      const cols = [0xffd23a, 0xffffff, 0xff3b4a, 0xfff3c0];
+      for (let k = 0; k < 14; k++) place(balloon(cols[k % 4]), 9.4, (k % 2 ? 1 : -1) * D(30 + Math.floor(k / 2) * 18), 1.7);
+      particles(st, 450, cols, 0.1, 0.8, true);
       break;
     }
     case 'primetime': {

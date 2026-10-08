@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { chevronTex, huellaTex, radialTex, vertFadeTex, canvasTex, numberTex } from './tex';
 import { Theme } from './themes';
 import { buildDecor } from './decor';
+import { drawLogo, LOGO_PAL } from './logo';
 
 export const TABLE_R = 3.3, TOP = 1.1, RING_IN = 5.2, RING_OUT = 8.4, TIER_OUT = 10.2, WALL_R = 12.5;
 export const A0 = THREE.MathUtils.degToRad(34), A1 = THREE.MathUtils.degToRad(166);
@@ -18,6 +19,7 @@ export class Studio {
   anim: ((dt: number, t: number) => void)[] = [];
   screenMats: THREE.MeshBasicMaterial[] = [];
   lights: THREE.Light[] = [];
+  prizeBoards: THREE.Group[] = [];
   t = 0;
   constructor(public theme: Theme, logoUrl: string, mobile: boolean) {
     const R = this.root, th = theme;
@@ -164,13 +166,20 @@ export class Studio {
     // recorte del logo del menú del Scratch (sin los sellos de las esquinas)
     const lcv = document.createElement('canvas'); lcv.width = 640; lcv.height = 430;
     const logoTex = new THREE.CanvasTexture(lcv); logoTex.colorSpace = THREE.SRGBColorSpace;
-    const limg = new Image(); limg.onload = () => {
+    if (LOGO_PAL[th.id] || true) {
+      // programas especiales: el logo propio en su variante del tema
+      const g = lcv.getContext('2d')!; const bg = g.createLinearGradient(0, 0, 0, 430); bg.addColorStop(0, th.wallB); bg.addColorStop(1, th.wallA);
+      g.fillStyle = bg; g.fillRect(0, 0, 640, 430);
+      const rg = g.createRadialGradient(320, 150, 20, 320, 200, 330); rg.addColorStop(0, 'rgba(255,255,255,.25)'); rg.addColorStop(1, 'rgba(0,0,0,.35)'); g.fillStyle = rg; g.fillRect(0, 0, 640, 430);
+      g.save(); g.translate(80, 0); drawLogo(g, 480, 430, { variant: th.id }); g.restore();
+      logoTex.needsUpdate = true;
+    } else { const limg = new Image(); limg.onload = () => {
       const g = lcv.getContext('2d')!; g.drawImage(limg, 160, 45, 640, 430, 0, 0, 640, 430);
       g.filter = 'blur(10px)';
       g.drawImage(limg, 160, 150, 130, 95, -10, -10, 130, 95);
       g.drawImage(limg, 650, 150, 160, 120, 590, -15, 160, 120);
       g.filter = 'none'; logoTex.needsUpdate = true;
-    }; limg.src = logoUrl;
+    }; limg.src = logoUrl; }
     const scrMat = new THREE.MeshBasicMaterial({ map: logoTex, color: 0xffffff }); this.screenMats.push(scrMat);
     const frameM = L(0x10182c, 0x05070c);
     const mkScreen = (w: number, h: number, p: THREE.Vector3, look: THREE.Vector3) => {
@@ -182,6 +191,41 @@ export class Studio {
     };
     mkScreen(5.4, 3.6, new THREE.Vector3(0, 3.55, -11.6), new THREE.Vector3(0, 3.0, 0));
     for (const sgn of [-1, 1]) { const p = polar(WALL_R - 0.4, sgn * THREE.MathUtils.degToRad(122), 3.35); mkScreen(3.0, 2.6, p, new THREE.Vector3(0, 3.0, 0)); }
+    // ---------- Marcador de premios de la moneda (valores de Valores/Moeda1-2 del .sb3) ----------
+    const PREMIOS: [string, string, string][] = [
+      ['50.000', '#ffd23a', '#3a2600'], ['25.000', '#ffd23a', '#3a2600'], ['15.000', '#ffd23a', '#3a2600'], ['5.000', '#ffd23a', '#3a2600'], ['1.000', '#ffd23a', '#3a2600'],
+      ['+1', '#ffe9a8', '#3a2600'], ['×2', '#39c8ff', '#001a33'], ['÷2', '#ff9a2a', '#331400'], ['VIDA EXTRA', '#5fff8a', '#002a10'], ['LO PIERDES TODO', '#ff3b3b', '#330000'],
+    ];
+    const BW = 512, BH = 820, ROW = 66, Y0 = 130;
+    const boardTex = canvasTex(BW, BH, (g, w, h) => {
+      const bg = g.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, '#06123a'); bg.addColorStop(1, '#020818');
+      g.fillStyle = bg; g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#' + glowCol.getHexString(); g.lineWidth = 10; g.strokeRect(8, 8, w - 16, h - 16);
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = '#ffffff'; g.font = '900 54px "Arial Black", Arial, sans-serif'; g.fillText('PREMIOS', w / 2, 58);
+      g.fillStyle = '#ffd23a'; g.font = '800 26px Arial, sans-serif'; g.fillText('DE LA MONEDA', w / 2, 100);
+      PREMIOS.forEach(([t, c, d], i) => {
+        const y = Y0 + i * ROW;
+        const lg = g.createLinearGradient(0, y, 0, y + ROW - 10); lg.addColorStop(0, c); lg.addColorStop(1, d);
+        g.fillStyle = lg; g.beginPath(); (g as any).roundRect ? (g as any).roundRect(40, y, w - 80, ROW - 12, 26) : g.rect(40, y, w - 80, ROW - 12); g.fill();
+        g.fillStyle = i < 6 ? '#1a1000' : '#ffffff'; g.font = `900 ${t.length > 8 ? 34 : 44}px "Arial Black", Arial, sans-serif`;
+        if (i >= 6) { g.lineWidth = 6; g.strokeStyle = 'rgba(0,0,0,.6)'; g.strokeText(t, w / 2, y + (ROW - 12) / 2 + 2); }
+        g.fillText(t, w / 2, y + (ROW - 12) / 2 + 2);
+      });
+    });
+    this.prizeBoards = [];
+    for (const sgn of [-1, 1]) {
+      const g = new THREE.Group(); const bw = 2.3, bh = bw * BH / BW;
+      g.add(new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), new THREE.MeshBasicMaterial({ map: boardTex })));
+      const fr = new THREE.Mesh(new THREE.BoxGeometry(bw + 0.25, bh + 0.25, 0.18), frameM); fr.position.z = -0.11; g.add(fr);
+      const edge = new THREE.Mesh(new THREE.PlaneGeometry(bw + 0.3, bh + 0.3), additive(th.glow, 0.4)); edge.position.z = -0.02; g.add(edge);
+      // barra luminosa que recorre los premios (como el sorteo de la moneda)
+      const hl = new THREE.Mesh(new THREE.PlaneGeometry(bw * 0.88, bh * (ROW - 8) / BH), additive(0xffffff, 0.35)); hl.position.z = 0.01; g.add(hl);
+      let k = sgn > 0 ? 3 : 0, acc = 0;
+      this.anim.push((dt) => { acc += dt; if (acc > 0.32) { acc = 0; k = (k + 1) % PREMIOS.length; } hl.position.y = bh / 2 - bh * (Y0 + k * ROW + (ROW - 12) / 2) / BH; (hl.material as THREE.MeshBasicMaterial).opacity = 0.18 + 0.25 * (1 - acc / 0.32); });
+      const p = polar(WALL_R - 0.7, sgn * THREE.MathUtils.degToRad(145), 3.7); g.position.copy(p); g.lookAt(0, 3.2, 0); R.add(g);
+      this.prizeBoards.push(g);
+    }
     // estructura del fondo: columnas con luces
     for (const sgn of [-1, 1]) {
       const col = new THREE.Mesh(new THREE.BoxGeometry(0.7, 6.2, 0.7), L(0x1a2440, 0x05070c)); col.position.set(sgn * 3.3, 3.1, -11.4); R.add(col);

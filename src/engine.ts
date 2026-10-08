@@ -82,6 +82,8 @@ export class Engine {
 
   /** Decorado dorado del Juego Final (como el 'decdesafiofinal' del Scratch). Solo cambia el plató, no los personajes. */
   gold = false;
+  /** se llama tras mover la cámara (efectos de la cabecera) */
+  extraUpdate: ((dt: number) => void) | null = null;
   setGoldSet(on: boolean) {
     if (on === this.gold || !this.studio) return;
     this.gold = on;
@@ -160,6 +162,7 @@ export class Engine {
     }
     for (const f of this.onFrame) f(dt);
     this.updateCamera(dt);
+    this.extraUpdate?.(dt);
     this.renderer.render(this.scene, this.camera);
   }
 

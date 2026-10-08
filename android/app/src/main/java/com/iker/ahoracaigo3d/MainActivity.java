@@ -2,6 +2,8 @@ package com.iker.ahoracaigo3d;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
+import android.webkit.ValueCallback;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.net.Uri;
@@ -30,6 +32,8 @@ public class MainActivity extends Activity {
     private static final String START = "https://" + HOST + "/index.html";
     private GameWebView web;
     private FrameLayout root;
+    private static final int REQ_FILE = 4201;
+    private ValueCallback<Uri[]> fileCb;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,7 +67,7 @@ public class MainActivity extends Activity {
         web.setOnLongClickListener(v -> true);
         web.setLongClickable(false);
         web.setWebViewClient(new AssetClient());
-        web.setWebChromeClient(new WebChromeClient());
+        web.setWebChromeClient(new GameChrome());
         web.addJavascriptInterface(new KbBridge(), "AndroidKb");
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
@@ -118,6 +122,43 @@ public class MainActivity extends Activity {
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
             return !HOST.equals(req.getUrl().getHost());
         }
+    }
+
+    /** Selector de archivos para <input type=file> (Opciones > Música de la cabecera).
+     *  El audio elegido se queda en el almacenamiento del juego en ESTE dispositivo; la app no lo sube a ningún sitio. */
+    private class GameChrome extends WebChromeClient {
+        @Override
+        public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> cb, FileChooserParams params) {
+            if (fileCb != null) fileCb.onReceiveValue(null);
+            fileCb = cb;
+            String type = "audio/*";
+            String[] acc = params != null ? params.getAcceptTypes() : null;
+            if (acc != null && acc.length > 0 && acc[0] != null && !acc[0].trim().isEmpty()) type = acc[0].trim();
+            Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType(type);
+            try {
+                startActivityForResult(Intent.createChooser(i, "Elige un audio"), REQ_FILE);
+            } catch (Exception e) {
+                fileCb = null;
+                cb.onReceiveValue(null);
+                return false;
+            }
+            return true;
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQ_FILE) {
+            if (fileCb != null) {
+                fileCb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+                fileCb = null;
+            }
+            hideSystemUi();
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     /** Puente para que el juego abra/cierre el teclado del movil cuando hay una pregunta. */

@@ -9,3 +9,5 @@ android/local.properties
 keystore/
 *.apk
 *.jks
+sintonia/
+tools/sintonia.py

@@ -1,3 +1,4 @@
+export const VERSION = '1.2';
 // ======= Rótulos y créditos (editar aquí) =======
 export const CREDITOS = {
   hashtag: '#AhoraCaigo',
