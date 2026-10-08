@@ -1,0 +1,28 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.iker.ahoracaigo3d'
+    compileSdk 34
+    defaultConfig {
+        applicationId "com.iker.ahoracaigo3d"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+    signingConfigs {
+        release {
+            storeFile file('../../keystore/ahoracaigo3d-release.jks')
+            storePassword System.getenv('KS_PASS')
+            keyAlias 'ahoracaigo3d'
+            keyPassword System.getenv('KS_PASS')
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    aaptOptions { noCompress 'mp3', 'webp', 'png' }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
