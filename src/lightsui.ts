@@ -62,7 +62,7 @@ export function setupLightsUI(eng: Engine) {
       const mv2 = cap.pan ? ['TILT', 'RTILT', 'SMTILT', 'SLTILT', 'PAN', 'RPAN', 'SMPAN', 'SLPAN'] : ['TILT', 'RTILT', 'SMTILT', 'SLTILT'];
       const lab: Record<string, string> = cap.pan ? {} : { RTILT: 'RANDOM TILT', SMTILT: 'SMOOTH TILT', SLTILT: 'SLOW TILT' };
       h += `<div class="lrow">${mv2.map(m => btn(lab[m] || m, 'move:' + m, s.move === m)).join('')}</div>`;
-      if (cap.pan) h += `<div class="lrow">${btn('CIRCLE', 'move:CIRCLE', s.move === 'CIRCLE')}${btn('RANDOM CIRCLE', 'move:RANDOM CIRCLE', s.move === 'RANDOM CIRCLE')}${cap.gobo ? btn('GOBO ROTATE', 'gobor', s.goboRot) : ''}</div>`;
+      if (cap.pan) h += `<div class="lrow">${btn('CIRCLE', 'move:CIRCLE', s.move === 'CIRCLE')}${btn('RANDOM CIRCLE', 'move:RANDOM CIRCLE', s.move === 'RANDOM CIRCLE')}${btn('PÚBLICO', 'move:PÚBLICO', s.move === 'PÚBLICO')}${cap.gobo ? btn('GOBO ROTATE', 'gobor', s.goboRot) : ''}</div>`;
       if (cap.follow) h += `<div class="lrow">${btn('Follow player/point…', 'follow', s.follow, 'wide')}${btn('CANCEL', 'cancel')}</div>`;
     }
     h += `<div class="lsec">Modifiers</div>`;

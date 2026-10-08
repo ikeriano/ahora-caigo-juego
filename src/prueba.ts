@@ -1,6 +1,7 @@
 import { Stage2D } from './stage2d';
 import { audio, costume, imgUrl } from './assets';
 import { Q, norm } from './questions';
+import { publico } from './publico';
 
 const AndroidKb: any = (window as any).AndroidKb;
 
@@ -144,7 +145,7 @@ export class Panel {
       this.input.value = '';
       if (ok) { this.renderSlots(v, 'ok'); const r = this.resolve; this.active = false; r?.(true); }
       else {
-        this.evaluating = true; this.renderSlots(v, 'bad'); audio.play('Erro');
+        this.evaluating = true; this.renderSlots(v, 'bad'); audio.play('Erro'); publico.oohSuave();
         setTimeout(() => { this.evaluating = false; if (this.active) this.renderSlots(''); }, 450);
       }
     }

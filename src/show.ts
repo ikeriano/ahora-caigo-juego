@@ -13,6 +13,11 @@ import { L, pick, fill } from './lines';
 import { Chistes, JokeCtx } from './jokes';
 import { voice } from './voice';
 import { duelo1v1 } from './duelo';
+import { publico } from './publico';
+import { cons, nuevaPartida } from './concursantes';
+import { presentarRival, presentarCentral } from './presentaciones';
+import { fraseNum } from './lines';
+import { PruebaId, planPruebas, tarjetaPrueba, jugarPrueba, eleccionCentral } from './pruebas';
 
 export interface Ctx { eng: Engine; hud: Hud; st: Stage2D; panel: Panel; s: Session }
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -99,6 +104,7 @@ export async function moneda(c: Ctx, opp: number, state: { placar: number; vidas
   swing(side); audio.play('fairydust@Moeda1'); await s.w(1000);
   const val = (side === 1 ? LEFT : RIGHT)[cos], other = (side === 1 ? RIGHT : LEFT)[cos];
   aplicar(val, state);
+  if (val === 'cero') publico.ooh(); else if (val === 'mitad') publico.oohSuave(); else publico.aplauso(val === 'doble' || val === 'vida' || val === '+50000' ? 3 : 2, 0.65);
   c.hud.toast(`Has ganado ${valorTexto(val)}` + (ensayo ? `<br><small>Al otro lado había: ${valorTexto(other)}</small>` : ''), 2600);
   await s.w(1000); swing(side === 1 ? 2 : 1); await s.w(1000);
   ['Valores', 'Valores2', 'Moeda1', 'Moeda2'].forEach(k => st.hide(k, 170));
@@ -144,7 +150,7 @@ export async function transicao(c: Ctx) {
 export class Programa {
   vidas = 2; placar = 0; acertos = 0; rodadas = 0; vidaExtra = 0; moedas: number[] = []; used = new Set<number>(); bank: Bank;
   timerStop = () => { }; noVidas = false;
-  chistes: Chistes; jokeDone = false;
+  chistes: Chistes; jokeDone = false; plan: PruebaId[] = [];
   constructor(public c: Ctx) { this.bank = new Bank(c.eng.theme.id); this.chistes = new Chistes(c.eng.theme.id); }
   /** Frase con voz; espera a que termine (o a que se toque el bocadillo) */
   async talk(text: string, ms = 2500) { let done = false; this.c.hud.say(text, ms).then(() => { done = true; }); await this.c.s.until(() => done); }
@@ -155,7 +161,7 @@ export class Programa {
     const { eng } = this.c;
     gesture(eng.host, 'habla', 3);
     await this.talk(t, 2600);
-    audio.applause(1.4, 0.3); gesture(eng.host, 'aplaude', 1.2);
+    publico.risas(); setTimeout(() => publico.aplauso(1.8, 0.45), 700); gesture(eng.host, 'aplaude', 1.2);
     eng.opps.forEach(o => { if (o.root.visible && Math.random() < 0.5) gesture(o, 'aplaude', 1.2); });
     await this.c.s.w(500);
   }
@@ -171,17 +177,24 @@ export class Programa {
     // la música de la cabecera (la del jugador o la del .sb3) se funde al terminar la cabecera
     if (audio.musicTime(CAB_MUSIC) >= 0) audio.stopMusic(audio.musicTime(CAB_MUSIC) < 26.5 ? 0.8 : 2.0);
     { const hp = eng.host.root.position; eng.cut(V(hp.x + 0.9, TOP + 1.7, hp.z + 3.2), V(hp.x, TOP + 1.3, hp.z)); eng.face(eng.host, V(hp.x + 1.2, 0, hp.z + 6)); }
-    gesture(eng.host, 'saluda', 2.2); audio.applause(2.5, 0.5);
+    gesture(eng.host, 'saluda', 2.2); publico.aplauso(3.2, 0.75);
     await s.w(900);
     gesture(eng.host, 'habla', 2.5); await this.talk(eng.theme.saludo, 3000);
-    for (const x of eng.theme.extra || []) { gesture(eng.host, 'habla', 2.5); await this.talk(x, 3000); }
-    if (eng.theme.festivo) { confettiBurst(eng.studio, V(-2, TOP + 2, 1)); confettiBurst(eng.studio, V(2, TOP + 2, 1)); audio.applause(2.5, 0.6); }
+    if (!eng.theme.extra?.length) publico.aplauso(2.2, 0.55);
+    for (const x of eng.theme.extra || []) { gesture(eng.host, 'habla', 2.5); await this.talk(x, 3000); publico.vitores(3); }
+    if (eng.theme.festivo) { confettiBurst(eng.studio, V(-2, TOP + 2, 1)); confettiBurst(eng.studio, V(2, TOP + 2, 1)); publico.vitores(3.5); }
+    // ---- presentación del concursante central ----
+    nuevaPartida();
+    if (cons.presentaciones) { await s.w(400); await presentarCentral(this.c); }
+    // ---- elección del central (tabletas) ----
+    this.plan = planPruebas(this.bank.gallina5());
+    if (cons.eleccion && !(window as any).__noEleccion && !((window as any).__botForce && !(window as any).__conEleccion)) { await s.w(300); await eleccionCentral(this.c); }
     audio.play('TemaCurto');
     await this.joke('intro');
     await s.w(600);
     await this.subirAlCentro();
     audio.playMusic('TrilhaCurta@Stage');
-    cams.wide(eng); eng.opps.forEach((o, i) => setTimeout(() => gesture(o, 'saluda', 1.2), i * 150));
+    cams.wide(eng); eng.opps.forEach((o, i) => setTimeout(() => gesture(o, 'saluda', 1.2), i * 150)); publico.aplauso(3.5, 0.7);
     hud.say(L.equipo, 3800);
     eng.glide(V(0, 5.2, 9.5), V(0, 1.2, -3), 3.6);
     await s.w(2000); audio.play('AcerteOuCaia SuspEdit', 0.8, 'susp');
@@ -210,7 +223,7 @@ export class Programa {
     if (d === 'plantarse') {
       this.placar = Math.floor(this.placar / 2);
       audio.stopAll(); await transicao(this.c); audio.playMusic('Trilha');
-      cams.player(eng, 1.5); hud.say(L.plantas, 3000);
+      cams.player(eng, 1.5); hud.say(L.plantas, 3000); publico.aplauso(3.5, 0.75);
       await s.w(1500); await marcador(this.c, this.placar, 4000, true);
       return this.fin('plantado');
     }
@@ -243,7 +256,15 @@ export class Programa {
     const { eng, hud, st, panel, s } = this.c;
     const o = eng.opps[opp - 1];
     eng.studio.setHoleColor(opp, eng.theme.accent);
-    cams.opp(eng, opp); gesture(o, 'saluda', 1.4); hud.say(fill(pick(L.elegidoT), opp), 2500);
+    cams.opp(eng, opp); gesture(o, 'saluda', 1.4);
+    { const f = fraseNum('elegidoT', opp); let d = false; hud.say(f.bubble, 2500, eng.host.head, 'El Presentador', { audio: f.audio }).then(() => { d = true; });
+      // charla del presentador con el oponente elegido (se puede saltar)
+      if (cons.presentaciones) { await s.until(() => d); await presentarRival(this.c, opp); } else await s.until(() => d); }
+    // ---- prueba del duelo: rótulo en la pantalla grande ----
+    const W = window as any;
+    const tipo: PruebaId = W.__pruebaForce || ((W.__botForce || W.__botClock) ? 'clasico' : this.plan[this.rodadas - 1] || 'clasico');
+    W.__pruebaActual = tipo;
+    await tarjetaPrueba(this.c, tipo);
     eng.face(eng.player, o.root.position); eng.face(o, eng.player.root.position);
     audio.playMusic('TrilhaCurta@MenuEscolha2'); await s.w(1000);
     audio.play('AhoraCaigo - ComeceDuelo.mp3'); hud.subs('AhoraCaigo - ComeceDuelo.mp3', false);
@@ -251,7 +272,7 @@ export class Programa {
     await s.w(2000); audio.playMusic('SuspenseDuelo', true); await s.w(1000);
     st.hide('MenuEscolha2', 330); await s.w(1000);
     // duelo de verdad: el oponente-bot también juega (turnos alternos, un reloj para cada uno)
-    const r = await duelo1v1(this, opp);
+    const r = await jugarPrueba(this, opp, tipo);
     if (r === 'win') {
       this.acertos++; eng.lights?.event('acierto');
       await s.w(800);
@@ -263,7 +284,7 @@ export class Programa {
       await s.w(3000);
       await this.caida(opp, o);
       audio.stopTag('susp'); await s.w(500); audio.playMusic('TrilhaCurta@Stage');
-      gesture(eng.player, 'arriba', 2); cams.player(eng, 1.2);
+      gesture(eng.player, 'arriba', 2); cams.player(eng, 1.2); publico.vitores(3.5);
       if (eng.theme.festivo) confettiBurst(eng.studio, V(0, TOP + 2, 0));
       await s.w(1500);
       if (Math.random() < 0.5) { this.jokeDone = true; await this.joke('caida'); } else this.jokeDone = false;
@@ -304,8 +325,8 @@ export class Programa {
     try { await s.until(() => !!result || (!!clock && clock.left <= 0)); } finally { stopClock(); }
     if (!result && clock && clock.left <= 0) result = 'tiempo';
     panel.showPasa(false);
-    if (result === 'ok') { panel.stopInput(); audio.play('QuemFicaEmPé-Acerto'); await panel.reveal(); hud.toast('¡CORRECTO!', 1100); }
-    else if (result === 'tiempo') { panel.stopInput(); audio.play('DropM.mp3'); await panel.reveal(); }
+    if (result === 'ok') { panel.stopInput(); audio.play('QuemFicaEmPé-Acerto'); publico.aplauso(final ? 1.4 : 2.2, final ? 0.5 : 0.65); await panel.reveal(); hud.toast('¡CORRECTO!', 1100); }
+    else if (result === 'tiempo') { panel.stopInput(); audio.play('DropM.mp3'); publico.ooh(0.7); await panel.reveal(); }
     else panel.stopInput();
     return result!;
   }
@@ -319,7 +340,7 @@ export class Programa {
     audio.play('AhoraCaigo - Queda.mp3'); hud.subs('AhoraCaigo - Queda.mp3', false);
     await s.w(500);
     
-    audio.play('DropM.mp3'); eng.shake = 0.5; eng.lights?.event('caida', h.pos.clone());
+    audio.play('DropM.mp3'); eng.shake = 0.5; eng.lights?.event('caida', h.pos.clone()); publico.ooh(1);
     await eng.fall(p, n);
     eng.studio.setHoleColor(n, 0x222222); h.target = 0;
   }
@@ -332,7 +353,7 @@ export class Programa {
     this.placar = 0;
     audio.stopTag('susp');
     await this.caida(0, eng.player);
-    await s.w(2000);
+    await s.w(900); publico.aplauso(2.6, 0.45); await s.w(1100);
     await banner(this.c, 'GcPerdeu', 2500);
     return 'lose';
   }
@@ -360,7 +381,7 @@ export class Programa {
     // como en el Scratch: viñeta de transición, música TemaCurto y el plató pasa a DORADO (decdesafiofinal)
     { const t = transicao(this.c); await s.w(420); eng.setGoldSet(true); eng.lights?.event('final'); await t; }
     audio.playMusic('TemaCurto');
-    eng.opps.forEach(o => o.root.visible && gesture(o, 'arriba', 1.5));
+    eng.opps.forEach(o => o.root.visible && gesture(o, 'arriba', 1.5)); publico.vitores(3.5);
     eng.startOrbit(V(0, 0, 0), 10.5, 4.8, 0, 0.06, 1); await s.w(2000);
     // rótulo JUEGO FINAL (ContagemDuelos 'GcDueloFinal' con el sonido Moeda)
     await banner(this.c, 'GcDueloFinal', 2500);
@@ -392,7 +413,7 @@ export class Programa {
     this.placar *= 2;
     audio.stopAll(); audio.playMusic('TrilhaCurta@Stage');
     eng.lights?.event('ganador'); confettiBurst(eng.studio, V(0, TOP + 1, 0)); confettiBurst(eng.studio, V(-3, 2, -3)); confettiBurst(eng.studio, V(3, 2, -3));
-    gesture(eng.player, 'arriba', 3); gesture(eng.host, 'aplaude', 3); cams.player(eng, 1.2);
+    gesture(eng.player, 'arriba', 3); gesture(eng.host, 'aplaude', 3); cams.player(eng, 1.2); publico.ovacion(8);
     hud.say(L.ganado, 4000);
     await s.w(1500); await marcador(this.c, this.placar, 6000, true);
     return true;

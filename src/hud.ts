@@ -24,9 +24,12 @@ export class Hud {
   hint(text: string | null) { const h = $('hint'); if (!text) h.classList.add('hidden'); else { h.innerHTML = text; h.classList.remove('hidden'); } }
   /** Bocadillo del Presentador sobre su cabeza (con voz). Se cierra tocándolo. Devuelve una promesa al cerrarse */
   private sayResolve: (() => void) | null = null; private subsToken = 0;
-  say(text: string, ms = 3200, who: THREE.Object3D | null = this.eng.host?.head || null, name = 'El Presentador', o: { voice?: boolean } = {}): Promise<void> {
+  say(text: string, ms = 3200, who: THREE.Object3D | null = this.eng.host?.head || null, name = 'El Presentador', o: { voice?: boolean; audio?: string[]; voz?: string; tts?: boolean } = {}): Promise<void> {
     if (o.voice !== false) this.subsToken++;
-    const v = o.voice === false ? { ms: 0 } : voice.speak(text);
+    // audio: textos candidatos para la voz (p. ej. la frase con el nombre por defecto pregenerada, o la versión sin nombre)
+    const v = o.voice === false ? { ms: 0 } : voice.say(o.audio || [text], { voz: o.voz, tts: o.tts });
+    // sin audio, el bocadillo dura lo que se tarda en leerlo
+    if (o.voice !== false && !v.ms) ms = Math.max(ms, 900 + text.length * 55);
     ms = Math.max(ms, v.ms + 450);
     this.sayResolve?.(); this.sayResolve = null;
     const b = $('bubble'); b.querySelector('span')!.textContent = text; (b.querySelector('b') as HTMLElement).textContent = name;

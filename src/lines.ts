@@ -1,6 +1,7 @@
 // Frases nuevas del Presentador (voz sintética genérica). Las voces originales del .sb3 están en voice.ts (CLIPS)
 import { THEMES, Theme } from './themes';
 import { CHISTES } from './jokes';
+import { cons, LB, conNombre } from './concursantes';
 const rnd = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 export const L = {
   sube: ['¡Concursante, sube a la trampilla central!', '¡Adelante! Ponte en el centro del plató, encima de la trampilla.'],
@@ -34,6 +35,12 @@ export const L = {
 };
 export const pick = (a: string[]) => rnd(a);
 export const fill = (t: string, n: number) => t.replace('{n}', String(n));
+/** Frase con el nombre del oponente en el bocadillo. Audio: la versión con el nombre por defecto (pregenerada) o la del número */
+export function fraseNum(k: keyof typeof LB, n: number) {
+  const i = Math.floor(Math.random() * LB[k].length); const nombre = cons.rival(n);
+  const bubble = conNombre(LB[k][i], nombre, n), num = fill(L[k][i], n);
+  return { bubble, audio: cons.esDef(n) ? [bubble, num] : [num] };
+}
 export function despedidaTexto(th: Theme) {
   return th.despedida || `Y hasta aquí el programa de hoy${th.id === 'normal' ? '' : ', el especial ' + th.name}. ¡Muchas gracias por jugar a ¡Ahora Caigo! Ha sido un placer, ¡sois los mejores! ¡Hasta la próxima!`;
 }

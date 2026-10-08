@@ -1,11 +1,24 @@
 import * as THREE from 'three';
-import { chevronTex, huellaTex, radialTex, vertFadeTex, canvasTex, numberTex } from './tex';
+import { chevronTex, huellaTex, radialTex, vertFadeTex, canvasTex, numberNameTex } from './tex';
+import { cons } from './concursantes';
 import { Theme } from './themes';
 import { buildDecor } from './decor';
 import { drawLogo, LOGO_PAL } from './logo';
 
 export const TABLE_R = 3.3, TOP = 1.1, RING_IN = 5.2, RING_OUT = 8.4, TIER_OUT = 10.2, WALL_R = 12.5;
 export const A0 = THREE.MathUtils.degToRad(34), A1 = THREE.MathUtils.degToRad(166);
+/** Filas del público sobre la grada trasera (radio del asiento y altura del suelo de la fila) */
+export const ROWS = [{ r: 8.85, y: 1.7 }, { r: 9.42, y: 1.95 }, { r: 9.95, y: 2.2 }];
+/** Ángulos de los pasillos de la grada (a cada lado) y extremos útiles de la grada */
+export const AISLES = [THREE.MathUtils.degToRad(73), THREE.MathUtils.degToRad(104), THREE.MathUtils.degToRad(135)];
+export const TIER_A = [A0 + 0.12 + 0.03, A1 - 0.03];
+/** Huecos para decoración en la grada: extremos y pasillos, en la primera y la última fila */
+export function tierSpots() {
+  const out: { r: number; a: number; y: number }[] = [];
+  const angs = [TIER_A[0] + 0.02, ...AISLES, TIER_A[1] - 0.01];
+  for (const row of [ROWS[2], ROWS[0]]) for (const a of angs) for (const sgn of [1, -1]) out.push({ r: row.r, a: sgn * a, y: row.y });
+  return out;
+}
 const STEP_A = THREE.MathUtils.degToRad(2.2);
 
 export interface Hole { pos: THREE.Vector3; r: number; doorA: THREE.Object3D; doorB: THREE.Object3D; ring: THREE.Mesh; halo: THREE.Mesh; open: number; target: number; activeMat: THREE.MeshBasicMaterial; label?: THREE.Sprite }
@@ -110,18 +123,14 @@ export class Studio {
       glass.position.y = TOP + 0.48; glass.rotation.y = sgn > 0 ? a0 + 0.05 : -a1; R.add(glass);
       const rail = new THREE.Mesh(new THREE.CylinderGeometry(RING_OUT - 0.15, RING_OUT - 0.15, 0.03, 48, 1, true, 0, a1 - a0 - 0.05), additive(0xcfe8ff, 0.7));
       rail.position.y = TOP + 0.96; rail.rotation.y = sgn > 0 ? a0 + 0.05 : -a1; R.add(rail);
-      // discos de cristal sobre postes (decoración de los atriles traseros)
-      const discM = new THREE.MeshBasicMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide });
-      const discRim = additive(th.glow, 0.6);
-      for (let k = 0; k < 9; k++) {
-        const a = a0 + 0.25 + (a1 - a0 - 0.35) * k / 8;
-        for (const [rr, hh] of [[RING_OUT + 0.6, 2.25], [TIER_OUT - 0.4, 2.55]] as const) {
-          const aa = a + (rr > 9 ? 0.06 : 0);
-          const p = polar(rr, sgn * aa);
-          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, hh - 1.7, 5), L(0x99aabb)); post.position.set(p.x, 1.7 + (hh - 1.7) / 2, p.z); R.add(post);
-          const d = new THREE.Mesh(new THREE.CircleGeometry(0.2, 18), discM); d.position.set(p.x, hh + 0.18, p.z); d.lookAt(0, hh + 0.18, 0); R.add(d);
-          const dr = new THREE.Mesh(new THREE.RingGeometry(0.19, 0.22, 18), discRim); dr.position.copy(d.position); dr.quaternion.copy(d.quaternion); R.add(dr);
-        }
+      // gradas del público (v1.3): dos escalones sobre la grada trasera para tres filas de asientos
+      R.add(this.arcBlock(ROWS[1].r - 0.27, TIER_OUT, a0 + 0.12, a1, ROWS[0].y, ROWS[1].y, sgn, capM, darkM));
+      R.add(this.arcBlock(ROWS[2].r - 0.27, TIER_OUT, a0 + 0.12, a1, ROWS[1].y, ROWS[2].y, sgn, capM, darkM));
+      // pasillos con lucecitas en los escalones
+      const stepLed = additive(th.glow, 0.85);
+      for (const aa of AISLES) for (const row of ROWS) {
+        const p = polar(row.r - 0.27, sgn * aa, row.y + 0.005);
+        const l = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.04), stepLed); l.position.copy(p); l.rotation.order = 'YXZ'; l.rotation.set(-Math.PI / 2, sgn * aa, 0); R.add(l); // tumbada y tangente al escalón
       }
     }
 
@@ -135,8 +144,8 @@ export class Studio {
     for (let k = 4; k >= 0; k--) pos.push(polar(6.75, angs[k], TOP));
     pos.forEach((p, i) => {
       const h = this.makeHole(p, 0.58, hTex, th);
-      const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: numberTex(String(i + 1)), depthWrite: false, transparent: true }));
-      spr.scale.set(0.42, 0.42, 1); spr.position.set(p.x, TOP + 2.25, p.z); R.add(spr); h.label = spr;
+      const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: numberNameTex(String(i + 1), cons.rival(i + 1)), depthWrite: false, transparent: true }));
+      spr.scale.set(1.0, 0.78, 1); spr.center.set(0.5, 0.68); spr.position.set(p.x, TOP + 2.25, p.z); R.add(spr); h.label = spr;
       // micro con pie delante de cada trampilla
       const dir = new THREE.Vector3(-p.x, 0, -p.z).normalize();
       const mp = p.clone().addScaledVector(dir, 0.75);
@@ -315,6 +324,10 @@ export class Studio {
     return { pos: p.clone(), r, doorA, doorB, ring, halo, open: 0, target: 0, activeMat };
   }
 
+  /** nombres de los oponentes en los rótulos de las trampillas (Opciones › Concursantes) */
+  refreshNames() {
+    this.holes.forEach((h, i) => { if (!i || !h.label) return; const m = h.label.material as THREE.SpriteMaterial; m.map?.dispose(); m.map = numberNameTex(String(i), cons.rival(i)); m.needsUpdate = true; });
+  }
   setHoleColor(i: number, c: number) { const h = this.holes[i]; h.activeMat.color.setHex(c); (h.halo.material as THREE.MeshBasicMaterial).color.setHex(c); }
 
   update(dt: number) {

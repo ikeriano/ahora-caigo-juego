@@ -1,0 +1,309 @@
+// Pruebas v1.3: público en las gradas (reacciones, sonido, Opciones › Público), Concursantes (nombres, presentaciones),
+// «La historia de ¡Ahora Caigo!» y rendimiento.  Uso: node test/v13.mjs <parte: opciones|programa|fotos|historia|perf> [base]
+import puppeteer from 'puppeteer-core'
+import fs from 'fs'
+const [,, part = 'opciones', base = 'http://127.0.0.1:4180/', W = '844', H = '390'] = process.argv
+const PP = 'previews/publico/', PC = 'previews/concursantes/', PH = 'previews/historia/', PR = 'previews/pruebas/'
+for (const d of [PP, PC, PH, PR]) fs.mkdirSync(d, { recursive: true })
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] })
+const p = await b.newPage()
+await p.setUserAgent('Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36')
+await p.setViewport({ width: +W, height: +H, deviceScaleFactor: 1, isMobile: true, hasTouch: true, isLandscape: true })
+const errors = []
+p.on('pageerror', e => { errors.push(e.message); console.log('PAGEERROR', e.message) })
+p.on('console', m => { if (m.type() === 'error' && !/favicon|404/.test(m.text())) console.log('CONSOLE', m.text()) })
+const t0 = Date.now(); const log = (...a) => console.log(((Date.now() - t0) / 1000).toFixed(1).padStart(6), ...a)
+const shot = async n => { await p.screenshot({ path: n }); log('📸', n) }
+const until = async (fn, ms = 60000, arg) => { const t = Date.now(); while (Date.now() - t < ms) { if (await p.evaluate(fn, arg).catch(() => false)) return true; await sleep(100) } throw new Error('timeout ' + fn.toString().slice(0, 160)) }
+const ev = (fn, ...arg) => p.evaluate(fn, ...arg)
+let fails = 0; const check = (ok, msg) => { console.log((ok ? '  ✅ ' : '  ❌ ') + msg); if (!ok) fails++ }
+const goCenter = async () => {
+  await until(() => [...document.querySelectorAll('#actions button')].some(b => b.textContent.includes('centro')), 90000)
+  await ev(() => [...document.querySelectorAll('#actions button')].find(b => b.textContent.includes('centro')).click())
+}
+const pickHuella = async (i = 0) => {
+  await until(() => document.querySelector('img.huella') && getComputedStyle(document.querySelector('img.huella')).display !== 'none', 90000)
+  await sleep(700); await ev(i => [...document.querySelectorAll('img.huella')].filter(x => x.classList.contains('click'))[i].click(), i)
+}
+const bubble = () => ev(() => { const b = document.getElementById('bubble'); return b.classList.contains('hidden') ? null : { who: b.querySelector('b').textContent, t: b.querySelector('span').textContent } })
+const camTo = (pos, look) => ev((pos, look) => { const E = window.__eng; E.orbit = null; E.cut(new THREE.Vector3(...pos), new THREE.Vector3(...look)) }, pos, look)
+const hideMenu = () => ev(() => document.getElementById('menu').classList.add('hidden'))
+
+if (part === 'opciones') {
+  await p.goto(base + '?nosw&screen=options', { waitUntil: 'load' })
+  await until(() => document.getElementById('optPublico') && document.getElementById('optConcursantes'))
+  await ev(() => localStorage.removeItem('ac3d_concursantes')); await ev(() => window.__cons.reload())
+  await sleep(1200)
+  await ev(() => document.getElementById('optPublico').scrollIntoView({ block: 'center' })); await sleep(500)
+  await shot(PP + 'opciones-publico.png')
+  check(await ev(() => document.querySelector('#rowPublico label').textContent.includes('Público')), 'fila «Público» con Sí/No y volumen')
+  // volumen y on/off del público
+  await ev(() => { const s = document.querySelector('#rowPublico input'); s.value = '35'; s.dispatchEvent(new Event('input')) })
+  check(await ev(() => JSON.parse(localStorage.getItem('ac3d_opts')).publicoVol === 0.35), 'volumen del público guardado (0,35)')
+  await ev(() => document.querySelector('#rowPublico button').click())
+  check(await ev(() => JSON.parse(localStorage.getItem('ac3d_opts')).publico === false && window.__crowd.out.gain.value < 0.01), 'Público: No silencia el público')
+  await ev(() => document.querySelector('#rowPublico button').click())
+  await ev(() => document.getElementById('btnGradas').click()); await sleep(300)
+  check(await ev(() => !window.__eng.audience), 'gradas: No quita el público 3D')
+  await ev(() => document.getElementById('btnGradas').click()); await sleep(300)
+  check(await ev(() => !!window.__eng.audience), 'gradas: Sí lo vuelve a poner')
+  // Concursantes
+  await ev(() => document.getElementById('optConcursantes').scrollIntoView({ block: 'center' })); await sleep(300)
+  await ev(() => document.getElementById('btnConcursantes').click())
+  await until(() => document.getElementById('inCentral'))
+  await p.type('#inCentral', 'Iker'); await p.type('#inProfesion', 'youtuber y campeón de ¡Ahora Caigo!')
+  await p.click('#inRival3', { clickCount: 3 }); await p.keyboard.press('Backspace'); await p.type('#inRival3', 'Ramoncín')
+  await sleep(500); await shot(PC + 'opciones-concursantes.png')
+  const st = await ev(() => JSON.parse(localStorage.getItem('ac3d_concursantes')))
+  check(st.central === 'Iker' && st.profesion.startsWith('youtuber') && st.rivales[2] === 'Ramoncín', 'guardado en localStorage: ' + JSON.stringify(st))
+  await ev(() => document.getElementById('inRival3').scrollIntoView({ block: 'center' })); await sleep(300); await shot(PC + 'opciones-concursantes-oponentes.png')
+  await p.goto(base + '?nosw&screen=concursantes', { waitUntil: 'load' })
+  await until(() => document.getElementById('inCentral'))
+  check(await ev(() => document.getElementById('inCentral').value === 'Iker' && document.getElementById('inRival3').value === 'Ramoncín'), 'persiste tras recargar')
+  // rótulos de las trampillas
+  await hideMenu(); await camTo([-1.2, 3.4, 1.6], [-5.6, 2.6, -2.2]); await sleep(1500)
+  await shot(PC + 'rotulos-trampillas.png')
+  // créditos con concursantes
+  await p.goto(base + '?nosw&screen=credits', { waitUntil: 'load' }); await until(() => document.querySelector('.mtext'))
+  check(await ev(() => document.querySelector('.mtext').textContent.includes('Iker · youtuber') && document.querySelector('.mtext').textContent.includes('Ramoncín')), 'créditos con el central y los oponentes')
+  await ev(() => document.getElementById('btnResetNombres')?.click())
+}
+
+if (part === 'programa') {
+  await p.goto(base + '?nosw&screen=play', { waitUntil: 'load' })
+  await until(() => !!(window.__eng && window.__eng.audience))
+  await ev(() => { localStorage.setItem('ac3d_concursantes', JSON.stringify({ central: 'Iker', profesion: 'youtuber', rivales: ['Paco', 'Lola', 'Ramoncín'], presentaciones: true })); window.__cons.reload() })
+  await ev(() => { window.__botForce = 'fail'; window.__botClock = 4; window.__presArg = true; window.__conEleccion = true; window.__elecBots = 'lento' })
+  await ev(() => { void window.__startMode('programa') })
+  // cabecera: aplausos al ritmo + planos de dron con público
+  await until(() => window.__publicoLog?.some(l => /ritmo/.test(l)), 40000)
+  await sleep(2500)
+  const rs = await ev(() => ({ st: window.__eng.audience.stats(), log: window.__publicoLog.slice(-4) }))
+  check(rs.st.kind === 'ritmo', 'cabecera: el público aplaude al ritmo (' + JSON.stringify(rs.log) + ')')
+  await shot(PP + 'cabecera-dron-publico.png')
+  await sleep(3000); await shot(PP + 'cabecera-dron-publico-2.png')
+  // presentación del central
+  await until(() => window.__pres && window.__pres.lineas[0]?.startsWith('host') && !window.__pres.done, 90000)
+  log('central:', JSON.stringify(await ev(() => window.__pres.lineas)))
+  await until(() => window.__pres.i >= 2 || window.__pres.done, 30000); await sleep(400)
+  const bc = await bubble(); log('bocadillo', JSON.stringify(bc))
+  check(bc && (bc.who === 'Iker' || bc.t.includes('youtuber') || bc.t.includes('Iker')), 'presentación del central con su nombre/profesión')
+  await shot(PC + 'presentacion-central.png')
+  await until(() => window.__pres.done, 60000)
+  // elección del central dentro del programa
+  await until(() => window.__elec && window.__elec.fase === 'pregunta' && window.__panel.active, 60000); await sleep(1200)
+  await shot(PR + 'programa-eleccion.png')
+  await p.keyboard.type(await ev(() => window.__panel.q.missing.join('')))
+  await until(() => window.__elec.fase === 'resultado', 20000)
+  check(await ev(() => window.__elec.ganador === 0), 'elección del central en el programa: gana Iker (' + await ev(() => JSON.stringify(window.__elec.tiempos)) + ')')
+  await goCenter()
+  await pickHuella(2) // huella 3 -> Ramoncín (nombre personalizado)
+  await until(() => window.__pres && !window.__pres.done && window.__pres.lineas.some(l => l.includes('Arguiñano')), 60000)
+  log('rival:', JSON.stringify(await ev(() => window.__pres.lineas)))
+  await until(() => window.__pres.i >= 1, 20000); await sleep(600)
+  const br = await bubble(); log('bocadillo', JSON.stringify(br))
+  check(br && br.who === 'Ramoncín', 'el oponente habla con su nombre en el bocadillo')
+  check(await ev(() => document.querySelector('#lower3')?.textContent.includes('Ramoncín')), 'rótulo con nombre y profesión')
+  await shot(PC + 'presentacion-oponente.png')
+  await until(() => { const b = document.getElementById('bubble'); return !b.classList.contains('hidden') && b.textContent.includes('Arguiñano') }, 40000); await sleep(500)
+  await shot(PC + 'arguinano.png')
+  check(await ev(() => window.__voice.has(window.__pres.lineas[1].replace(/^rival: /, ''), 'op3')), 'la frase del oponente tiene voz genérica pregenerada (op3)')
+  await until(() => window.__pres.done, 60000)
+  await until(() => !!window.__prueba && !!document.getElementById('pruebaCard'), 30000); await sleep(600); await shot(PR + 'programa-rotulo.png')
+  await sleep(1900); await shot(PR + 'programa-rotulo-pantalla.png')
+  check(await ev(() => window.__pruebaActual === 'clasico'), 'rótulo de la prueba antes del duelo (' + await ev(() => window.__prueba.titulo) + ')')
+  await until(() => !!document.getElementById('duelBar'), 30000); await sleep(1500)
+  check(await ev(() => document.getElementById('duelBar').textContent.includes('Iker') && document.getElementById('duelBar').textContent.includes('Ramoncín')), 'marcador del duelo: Iker VS Ramoncín')
+  await shot(PC + 'duelo-nombres.png')
+  // el bot se queda sin tiempo -> cae -> «oooh»
+  await until(() => window.__publicoLog?.some(l => /ooh/.test(l)), 60000)
+  check(true, 'el público hace «oooh» en la caída')
+  // moneda tras ganar el duelo
+  await until(() => (() => { const h = document.getElementById('hint'); return h && !h.classList.contains('hidden') && /moneda/i.test(h.textContent) })(), 60000); await sleep(800)
+  await p.keyboard.press('ArrowLeft')
+  // segundo duelo: saltar la presentación y jugar ENTRE TRES dentro del programa
+  await ev(() => { window.__presArg = undefined; window.__pruebaForce = 'entretres' })
+  await pickHuella(0)
+  await until(() => window.__pres && !window.__pres.done && window.__pres.i >= 0, 60000); await sleep(1200)
+  await p.click('#btnSkip'); await until(() => window.__pres.done, 5000)
+  check(await ev(() => window.__pres.skipped), 'la presentación se puede saltar')
+  await until(() => window.__prueba?.titulo === 'ENTRE TRES' && !!document.getElementById('pruebaCard'), 30000); await sleep(500)
+  await shot(PR + 'programa-rotulo-entre-tres.png')
+  await until(() => window.__e3 && window.__e3.turn === 'me' && document.querySelectorAll('#e3 .e3b').length === 3, 30000); await sleep(800)
+  await ev(() => window.__e3.choose(window.__e3.q[2]))
+  await until(() => window.__publicoLog.filter(l => /ooh/.test(l)).length >= 2, 40000)
+  check(true, 'Entre tres en el programa: el oponente cae (' + await ev(() => window.__e3.log.join(',')) + ')')
+  console.log('publicoLog:', JSON.stringify(await ev(() => window.__publicoLog.slice(-12))))
+}
+
+if (part === 'fotos') {
+  // planos fijos para las capturas del público
+  const go = async (theme) => { await p.goto(base + `?nosw&screen=main&theme=${theme}`, { waitUntil: 'load' }); await until(() => !!(window.__eng && window.__eng.audience)); await hideMenu(); await sleep(800) }
+  await go('normal')
+  await camTo([0, 6.2, 14.2], [0, 1.0, -1.5]); await sleep(2500); await shot(PP + 'plano-general.png')
+  await ev(() => window.__publico.aplauso(10, 0.8)); await camTo([-2.5, 3.6, 3], [-8.5, 2.4, -1]); await sleep(1600); await shot(PP + 'aplauso.png')
+  await ev(() => { const E = window.__eng; E.fall(E.opps[1], 2); window.__publico.ooh(1) }); await camTo([-1.6, 3.4, 4.6], [-7.5, 2.2, -2.5]); await sleep(1300); await shot(PP + 'ooh-caida.png')
+  await ev(() => window.__publico.ovacion(8)); await camTo([3, 3.2, -1], [9, 2.6, 2.5]); await sleep(2200); await shot(PP + 'ovacion.png')
+  await go('halloween'); await camTo([-2.5, 3.6, 3], [-8.5, 2.4, -1]); await sleep(1500); await shot(PP + 'halloween.png')
+  await go('especial300'); await ev(() => window.__eng.audience.react('vitores', 12)); await camTo([-2.2, 3.4, 2.6], [-8.5, 2.4, -1]); await sleep(1800); await shot(PP + 'especial300-carteles.png')
+  check(await ev(() => window.__eng.audience.stats().signs >= 10), 'Especial 300: carteles «300» y hashtag')
+}
+
+if (part === 'historia') {
+  await p.goto(base + '?nosw&screen=main', { waitUntil: 'load' })
+  await until(() => window.__eng && [...document.querySelectorAll('.mbtn')].some(b => b.textContent.includes('historia')))
+  await sleep(600); await shot(PH + 'menu-historia.png')
+  const missing = await ev(() => window.__voiceLines().filter(l => !window.__voice.index[l.h]).map(l => (l.v || 'host') + ': ' + l.t))
+  check(missing.length === 0, 'todas las frases tienen voz pregenerada (' + missing.length + ' sin voz) ' + missing.slice(0, 3).join(' | '))
+  await ev(() => [...document.querySelectorAll('.mbtn')].find(b => b.textContent.includes('historia')).click())
+  await until(() => document.getElementById('historia') && window.__historia?.linea >= 0)
+  await sleep(2600); await shot(PH + '01-origen.png')
+  check(await ev(() => document.querySelector('#hSub').textContent.length > 20), 'subtítulos visibles')
+  const goCap = async (i, n) => { await ev(i => document.querySelectorAll('#hDots i')[i].click(), i); await until(i => window.__historia.cap === i && window.__historia.linea >= 0, 10000, i); await sleep(2400); await shot(PH + n) }
+  await ev(() => document.getElementById('hNext').click()); await until(() => window.__historia.cap === 1, 5000); await sleep(2400); await shot(PH + '02-estreno.png')
+  await ev(() => document.getElementById('hPrev').click()); await until(() => window.__historia.cap === 0, 5000); check(true, 'Anterior / Siguiente funcionan')
+  const l0 = await ev(() => window.__historia.linea); await ev(() => document.getElementById('hSkip').click()); await until(l0 => window.__historia.linea > l0 || window.__historia.cap > 0, 5000, l0); check(true, 'Saltar pasa a la frase siguiente')
+  await goCap(2, '03-especiales.png'); await goCap(3, '04-remodelacion.png'); await goCap(4, '05-pruebas.png'); await goCap(5, '06-mecanica-2021.png')
+  await goCap(6, '07-despedida.png'); await goCap(7, '08-por-el-mundo.png'); await goCap(8, '09-audiencias.png'); await goCap(9, '10-la-vuelta.png')
+  check(await ev(() => document.querySelector('.hfuente').textContent.includes('Wikipedia') && document.querySelector('.hfuente').textContent.includes('CC BY-SA')), 'última tarjeta: «Fuente: Wikipedia (CC BY-SA)»')
+  const allText = await ev(() => JSON.stringify(window.__voiceLines()))
+  check(!/Borja|Santamar/.test(allText), 'sin nombres de ganadores')
+  await ev(() => document.getElementById('hNext').click())
+  await until(() => !document.getElementById('historia') && !document.getElementById('menu').classList.contains('hidden'), 8000)
+  check(true, '«Terminar» vuelve al menú')
+}
+
+if (part === 'pruebas') {
+  const train = async (k, setup = () => { }) => {
+    await p.goto(base + '?nosw&screen=train', { waitUntil: 'load' }); await until(() => !!window.__eng)
+    await ev(setup); await ev(k => { void window.__startMode('entrenamiento', k) }, k)
+  }
+  // ---- ENTRE TRES: el jugador acierta, el bot falla
+  await train('entretres', () => { window.__trOpp = 2; window.__botForce = 'fail' })
+  await until(() => !!document.getElementById('pruebaCard'), 20000); await sleep(900); await shot(PR + 'rotulo-entre-tres.png')
+  check(await ev(() => window.__prueba.titulo === 'ENTRE TRES'), 'rótulo de la prueba en pantalla')
+  await until(() => window.__e3 && document.querySelectorAll('#e3 .e3b').length === 3 && window.__e3.turn === 'me', 30000); await sleep(1200)
+  await shot(PR + 'entre-tres.png')
+  check(await ev(() => !!window.__eng.split), 'pantalla partida activa')
+  await ev(() => window.__e3.choose(window.__e3.q[2])); await sleep(600); await shot(PR + 'entre-tres-acierto.png')
+  await until(() => window.__e3.turn === 'bot', 10000); await sleep(1500); await shot(PR + 'entre-tres-turno-bot.png')
+  await until(() => /Duelo ganado/.test(document.getElementById('scorebox')?.textContent || ''), 30000)
+  check(true, 'Entre tres: el oponente falla y cae → duelo ganado (' + await ev(() => window.__e3.log.join(',')) + ')')
+  // ---- ENTRE TRES: el jugador falla sin comodines -> pierde
+  await train('entretres', () => { window.__trOpp = 4; window.__botForce = 'win' })
+  await until(() => window.__e3 && window.__e3.turn === 'me' && document.querySelectorAll('#e3 .e3b').length === 3, 30000); await sleep(900)
+  await ev(() => window.__e3.choose((window.__e3.q[2] + 1) % 3))
+  await until(() => /comodín/.test(document.getElementById('toast')?.textContent || '') || /perdido/.test(document.getElementById('scorebox')?.textContent || ''), 15000)
+  check(await ev(() => /comodín/.test(document.getElementById('toast').textContent)), 'fallo con comodín: te salva un comodín')
+  // ---- ADIVINA: el jugador pulsa LO SÉ y escribe
+  await train('adivina', () => { window.__trOpp = 6; window.__botForce = 'fail'; window.__advPer = 2.2 })
+  await until(() => window.__adv && window.__adv.clue >= 2, 40000); await sleep(400)
+  await shot(PR + 'adivina-pistas.png')
+  check(await ev(() => document.querySelectorAll('#advlist li').length >= 3 && !!document.getElementById('btnLoSe')), 'Adivina: pistas una a una y botón LO SÉ')
+  await ev(() => window.__adv.buzz()); await until(() => window.__panel.active, 8000); await sleep(600)
+  await shot(PR + 'adivina-lo-se.png')
+  await p.keyboard.type(await ev(() => window.__panel.q.missing.join('')))
+  await until(() => /Duelo ganado/.test(document.getElementById('scorebox')?.textContent || ''), 30000)
+  check(true, 'Adivina: acierta el jugador → el oponente cae (' + await ev(() => window.__adv.log.join(',')) + ')')
+  // ---- ADIVINA: el bot pulsa antes y acierta
+  await train('adivina', () => { window.__trOpp = 9; window.__botForce = 'win'; window.__advPer = 2.5 })
+  await until(() => window.__adv && window.__adv.log.some(l => l.startsWith('buzz:bot')), 40000); await sleep(1500)
+  await shot(PR + 'adivina-bot-pulsa.png')
+  await until(() => window.__adv.log.includes('bot:ok'), 20000); check(true, 'Adivina: el oponente pulsa antes y acierta')
+  // ---- ELECCIÓN DEL CENTRAL
+  await ev(() => localStorage.setItem('ac3d_concursantes', JSON.stringify({ central: 'Iker', profesion: 'youtuber', rivales: [], presentaciones: true, eleccion: true })))
+  await train('eleccion', () => { window.__cons.reload(); window.__elecBots = 'normal' })
+  await until(() => window.__elec && window.__elec.fase === 'pregunta' && window.__panel.active, 30000); await sleep(1500)
+  await shot(PR + 'eleccion-central.png')
+  await p.keyboard.type(await ev(() => window.__panel.q.missing.join('')))
+  await until(() => window.__elec.fase === 'resultado' && document.querySelector('.ecard.win'), 20000); await sleep(1800)
+  await shot(PR + 'eleccion-central-tiempos.png')
+  const el = await ev(() => window.__elec)
+  check(el.tiempos[0] != null && el.ganador >= 0, `elección: tu tiempo ${el.tiempos[0]} s, gana ${el.ganador === 0 ? 'Iker' : 'el oponente ' + el.ganador}`)
+  // bots rápidos: el jugador entra «por invitación del público»
+  await train('eleccion', () => { window.__elecBots = 'rapido'; window.__elecLim = 6 })
+  await until(() => window.__elec && window.__elec.fase === 'resultado', 40000); await until(() => document.getElementById('bubble').textContent.includes('invitación'), 10000)
+  check(true, 'si gana un bot, el jugador entra por invitación del público')
+  // plan de pruebas variado
+  const plans = await ev(() => { const r = []; for (let i = 0; i < 200; i++) r.push(window.__planPruebas(true)); return r })
+  const cnt = {}; plans.flat().forEach(x => cnt[x] = (cnt[x] || 0) + 1)
+  check(plans.every(pl => pl[4] === 'gallina' && pl.filter(x => x === 'clasico').length <= 3 && new Set(pl).size >= 3), 'plan de 8 pruebas variado: ' + JSON.stringify(cnt))
+}
+
+if (part === 'pruebas2') {
+  const train = async (k, setup = () => { }) => {
+    await p.goto(base + '?nosw&screen=train', { waitUntil: 'load' }); await until(() => !!window.__eng)
+    await ev(setup); await ev(k => { void window.__startMode('entrenamiento', k) }, k)
+  }
+  const scoreTxt = () => ev(() => document.getElementById('scorebox')?.textContent || '')
+  // ---- ¡DAME LETRA!: el jugador pide letras y resuelve la frase
+  await train('dameletra', () => { window.__trOpp = 3; window.__botForce = 'fail' })
+  await until(() => !!document.getElementById('pruebaCard'), 20000); await sleep(900); await shot(PR + 'rotulo-dame-letra.png')
+  check(await ev(() => window.__prueba.titulo === '¡DAME LETRA!'), 'rótulo «¡DAME LETRA!»')
+  await until(() => window.__dl && window.__dl.turn === 'me' && window.__dl.fase === 'letra', 30000); await sleep(600)
+  check(await ev(() => document.querySelectorAll('#dlb i.t.on').length === 0 && document.querySelectorAll('#dlb i.t').length > 4), 'frase con todas las letras ocultas: ' + await ev(() => window.__dl.frase))
+  await p.focus('#dlIn'); await p.keyboard.type('E')
+  await until(() => window.__dl.fase === 'resolver', 8000); await sleep(800)
+  check(await ev(() => window.__dl.log.some(l => l.startsWith('me:letra E'))), 'letra elegida con el teclado: ' + await ev(() => window.__dl.log.join(',')))
+  await p.click('#dlPaso')
+  await until(() => window.__dl.turn === 'bot', 8000); await sleep(1500); await shot(PR + 'dame-letra-turno-bot.png')
+  await until(() => window.__dl.turn === 'me' && window.__dl.fase === 'letra', 20000)
+  const L2 = await ev(() => document.querySelector('#dlb i.t:not(.on)').dataset.l)
+  await p.focus('#dlIn'); await p.keyboard.type(L2); await until(() => window.__dl.fase === 'resolver', 8000); await sleep(900)
+  const fr = await ev(() => window.__dl.frase)
+  await p.type('#dlIn', fr.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[,¡!¿?]/g, ''))
+  await sleep(300); await shot(PR + 'dame-letra.png'); await p.keyboard.press('Enter')
+  await until(async () => /Duelo ganado/.test(document.getElementById('scorebox')?.textContent || ''), 30000)
+  check(true, '¡Dame letra!: frase resuelta (sin tildes ni mayúsculas) → el oponente cae (' + await ev(() => window.__dl.log.join(',')) + ')')
+  // ---- ¡DAME LETRA!: el oponente la dice primero y roba un comodín
+  await train('dameletra', () => { window.__trOpp = 7; window.__botForce = 'win'; window.__meFirst = false })
+  await until(() => window.__dl && window.__dl.log.includes('bot:roba'), 40000); await sleep(400)
+  await shot(PR + 'dame-letra-roba-comodin.png')
+  check(await ev(() => /🃏×1/.test(document.querySelector('#splitUi .stag.r').textContent)), 'el oponente sin comodines lo dice primero → roba un comodín al central')
+  // ---- ¿SÍ O NO?: el jugador acierta y el oponente falla
+  await train('sino', () => { window.__trOpp = 5; window.__botForce = 'fail'; window.__meFirst = true })
+  await until(() => !!document.getElementById('pruebaCard'), 20000); await sleep(900); await shot(PR + 'rotulo-si-o-no.png')
+  await until(() => window.__sn && window.__sn.turn === 'me' && !document.getElementById('snSi').disabled, 30000); await sleep(800)
+  await shot(PR + 'si-o-no.png')
+  check(await ev(() => ![...document.querySelectorAll('#actions button')].some(b => /pasar/i.test(b.textContent) && b.offsetParent)), '¿Sí o no?: sin botón PASAR')
+  await ev(() => window.__sn.answer(window.__sn.q[1]))
+  await until(() => window.__sn.turn === 'bot', 8000); await sleep(1400); await shot(PR + 'si-o-no-turno-bot.png')
+  await until(async () => /Duelo ganado/.test(document.getElementById('scorebox')?.textContent || ''), 20000)
+  check(true, '¿Sí o no?: el oponente falla sin comodines y cae (' + await ev(() => window.__sn.log.join(',')) + ')')
+  // ---- ¿SÍ O NO?: fallo con comodín → el oponente acierta la siguiente y lo roba
+  await train('sino', () => { window.__trOpp = 8; window.__botForce = 'win'; window.__meFirst = true })
+  await until(() => window.__sn && window.__sn.turn === 'me' && !document.getElementById('snSi').disabled, 30000); await sleep(500)
+  await ev(() => window.__sn.answer(!window.__sn.q[1]))
+  await until(() => window.__sn.log.includes('bot:roba'), 20000); await sleep(300)
+  await shot(PR + 'si-o-no-roba-comodin.png')
+  check(await ev(() => window.__sn.log.slice(0, 3).join(',') === 'me:mal,me:gasta,bot:ok'), '¿Sí o no?: fallas, gastas comodín y el oponente lo roba al acertar (' + await ev(() => window.__sn.log.join(',')) + ')')
+  // plan con las nuevas pruebas
+  const plans = await ev(() => { const r = []; for (let i = 0; i < 300; i++) r.push(window.__planPruebas(true)); return r })
+  const cnt = {}; plans.flat().forEach(x => cnt[x] = (cnt[x] || 0) + 1)
+  check(plans.every(pl => pl[4] === 'gallina' && pl.filter(x => x === 'clasico').length <= 3 && new Set(pl).size >= 4) && cnt.dameletra > 0 && cnt.sino > 0, 'plan variado con ¡Dame letra! y ¿Sí o no?: ' + JSON.stringify(cnt))
+}
+
+if (part === 'perf') {
+  const cdp = await p.target().createCDPSession()
+  const run = async (gradas, q, thr) => {
+    await p.goto(base + '?nosw&screen=main', { waitUntil: 'load' }); await until(() => !!window.__eng)
+    await ev((g, q) => { const o = JSON.parse(localStorage.getItem('ac3d_opts') || '{}'); o.gradas = g; o.quality = q; localStorage.setItem('ac3d_opts', JSON.stringify(o)) }, gradas, q)
+    await p.reload({ waitUntil: 'load' }); await until(() => !!window.__eng); await hideMenu()
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: thr })
+    await camTo([0, 6.2, 14.2], [0, 1.0, -1.5]); if (gradas) await ev(() => window.__publico.ovacion(20))
+    await sleep(2500)
+    const r = await ev(() => new Promise(res => { let n = 0, am = 0, f0 = performance.now(); const E = window.__eng; const tick = () => { n++; am += E.audienceMs || 0; if (performance.now() - f0 < 4000) requestAnimationFrame(tick); else res({ fps: +(n / ((performance.now() - f0) / 1000)).toFixed(1), audienceMs: +(am / n).toFixed(3), calls: E.renderer.info.render.calls, tris: E.renderer.info.render.triangles, people: E.audience?.stats().n || 0 }) }; requestAnimationFrame(tick) }))
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })
+    console.log(JSON.stringify({ gradas, q, cpuThrottle: thr, ...r })); return r
+  }
+  const on = await run(true, 'media', 1), off = await run(false, 'media', 1)
+  const onT = await run(true, 'media', 4), offT = await run(false, 'media', 4)
+  await run(true, 'baja', 4)
+  check(on.audienceMs < 1.5 && onT.audienceMs < 4, `coste JS del público: ${on.audienceMs} ms/frame (x4 CPU: ${onT.audienceMs} ms)`)
+  check(on.calls - off.calls <= 24, `draw calls extra por el público: ${on.calls - off.calls}`)
+}
+
+console.log(errors.length ? '❌ errores de página: ' + errors.length : '✅ sin errores de página')
+console.log(fails ? `❌ ${fails} comprobaciones fallidas` : '✅ todo OK')
+await b.close(); process.exit(fails || errors.length ? 1 : 0)

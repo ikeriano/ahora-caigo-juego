@@ -12,7 +12,9 @@ import { cams } from './show';
 import { audio } from './assets';
 import { showVidas } from './prueba';
 import { gesture } from './people';
-import { L, pick, fill } from './lines';
+import { L, pick, fraseNum } from './lines';
+import { cons } from './concursantes';
+import { publico } from './publico';
 
 export type DuelResult = 'win' | 'lose';
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
@@ -27,7 +29,7 @@ interface Bar { el: HTMLElement; set(turn: 'me' | 'bot', me: number, bot: number
 function duelBar(opp: number): Bar {
   document.getElementById('duelBar')?.remove();
   const el = document.createElement('div'); el.id = 'duelBar';
-  el.innerHTML = `<div class="dc" data-k="me"><b>Tú</b><span>30,00</span><i></i></div><div class="vs">VS</div><div class="dc" data-k="bot"><b>Oponente ${opp}</b><span>30,00</span><i></i></div>`;
+  el.innerHTML = `<div class="dc" data-k="me"><b>${cons.tu}</b><span>30,00</span><i></i></div><div class="vs">VS</div><div class="dc" data-k="bot"><b>${cons.rival(opp)}</b><span>30,00</span><i></i></div>`;
   document.getElementById('hud')!.appendChild(el);
   const me = el.querySelector('[data-k=me]') as HTMLElement, bo = el.querySelector('[data-k=bot]') as HTMLElement;
   const f = (t: number) => { const s = Math.max(0, t); return String(Math.floor(s)).padStart(2, '0') + ',' + String(Math.floor((s % 1) * 100)).padStart(2, '0'); };
@@ -85,14 +87,14 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
       const think = lerp(7.5, 2.8, k) * rnd(0.7, 1.35) * (W.__botForce === 'win' ? 0.4 : 1);
       const per = lerp(0.65, 0.3, k);
       gesture(bot, 'habla', 1.6);
-      hud.say(pick(['Mmm…', 'A ver, a ver…', 'Lo tengo en la punta de la lengua…', '¡Esta me la sé!', 'Déjame pensar…']), 1800, bot.head, 'Oponente ' + opp, { voice: false });
+      hud.say(pick(['Mmm…', 'A ver, a ver…', 'Lo tengo en la punta de la lengua…', '¡Esta me la sé!', 'Déjame pensar…']), 1800, bot.head, cons.rival(opp), { voice: false });
       if (stuck) {
         log('bot-stuck');
         if (!await botWait(lerp(9, 5, k) * rnd(0.8, 1.2))) return 'tiempo';
         if (W.__botForce !== 'fail' && Math.random() < 0.7) {
           // el bot PASA: otra pregunta y su reloj sigue corriendo
           log('bot-pasa'); audio.play('SomPalavra@Teclado27'); gesture(bot, 'lamenta', 1.2);
-          hud.say('¡Paso!', 1400, bot.head, 'Oponente ' + opp, { voice: false });
+          hud.say('¡Paso!', 1400, bot.head, cons.rival(opp), { voice: false });
           panel.botSlots('', 'bot', '⏭ ¡PASA!'); await botWait(0.9);
           q = newQ(); continue;
         }
@@ -108,15 +110,15 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
         const bad = [...ans]; bad[Math.floor(Math.random() * bad.length)] = AB[Math.floor(Math.random() * AB.length)];
         log('bot-error');
         if (!await type(bad.join(''))) return 'tiempo';
-        panel.botSlots(bad.join(''), 'bad'); audio.play('Erro'); gesture(bot, 'lamenta', 1);
+        panel.botSlots(bad.join(''), 'bad'); audio.play('Erro'); gesture(bot, 'lamenta', 1); publico.oohSuave();
         if (!await botWait(0.6)) return 'tiempo';
         panel.botSlots('', 'bot', '💭 …');
         if (!await botWait(think * 0.5)) return 'tiempo';
       }
       if (!await type(ans)) return 'tiempo';
       running = false; log('bot-ok');
-      panel.botSlots(ans, 'ok'); audio.play('QuemFicaEmPé-Acerto'); await panel.reveal(); gesture(bot, 'arriba', 1.2);
-      hud.toast(`El oponente ${opp} acierta`, 1100);
+      panel.botSlots(ans, 'ok'); audio.play('QuemFicaEmPé-Acerto'); publico.aplauso(1.6, 0.45); await panel.reveal(); gesture(bot, 'arriba', 1.2);
+      hud.toast(`${cons.rival(opp)} acierta`, 1100);
       await s.w(1100); panel.hideQuestion(250); return 'ok';
     }
   };
@@ -133,9 +135,9 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
     if (!running) { await s.w(600); running = true; }
     await s.until(() => !!res || clocks.me <= 0);
     panel.showPasa(false);
-    if (!res) { running = false; panel.stopInput(); audio.play('DropM.mp3'); await panel.reveal(); return 'tiempo'; }
+    if (!res) { running = false; panel.stopInput(); audio.play('DropM.mp3'); publico.ooh(0.8); await panel.reveal(); return 'tiempo'; }
     if (res === 'ok') {
-      running = false; log('me-ok'); panel.stopInput(); audio.play('QuemFicaEmPé-Acerto'); await panel.reveal(); hud.toast('¡CORRECTO!', 1100);
+      running = false; log('me-ok'); panel.stopInput(); audio.play('QuemFicaEmPé-Acerto'); publico.aplauso(2.4, 0.7); await panel.reveal(); hud.toast('¡CORRECTO!', 1100);
       gesture(eng.player, 'arriba', 1.2); await s.w(1000); panel.hideQuestion(250); return 'ok';
     }
     if (res === 'pasaCom') {
@@ -154,7 +156,7 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
 
   try {
     // empieza el oponente (como en el programa)
-    hud.say(fill(pick(turn === 'bot' ? L.turnoBot : L.turnoTu), opp), 2200);
+    { const f = turn === 'bot' ? fraseNum('turnoBot', opp) : { bubble: pick(L.turnoTu), audio: undefined }; hud.say(f.bubble, 2200, eng.host.head, 'El Presentador', { audio: f.audio }); }
     await s.w(1200);
     let carry: Q | null = null;
     while (true) {
@@ -162,7 +164,7 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
       const q = carry || newQ(); carry = null;
       if (turn === 'bot') {
         const r = await botTurn(q);
-        if (r === 'tiempo') { running = false; bar.out('bot'); log('bot-tiempo'); audio.stopTag('clock'); panel.stopInput(); audio.play('DropM.mp3'); await panel.reveal(); hud.say(fill(pick(L.botTiempo), opp), 2200); await s.w(1200); return 'win'; }
+        if (r === 'tiempo') { running = false; bar.out('bot'); log('bot-tiempo'); audio.stopTag('clock'); panel.stopInput(); audio.play('DropM.mp3'); await panel.reveal(); { const f = fraseNum('botTiempo', opp); hud.say(f.bubble, 2200, eng.host.head, 'El Presentador', { audio: f.audio }); } await s.w(1200); return 'win'; }
         turn = 'me';
       } else {
         const r = await meTurn(q);

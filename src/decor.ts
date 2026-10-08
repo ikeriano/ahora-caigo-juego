@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Studio } from './set3d';
+import { tierSpots, type Studio } from './set3d';
 import type { Theme } from './themes';
 import { canvasTex, vertFadeTex } from './tex';
 
@@ -112,10 +112,13 @@ export function buildDecor(st: Studio, th: Theme) {
   const R = st.root;
   const place = (o: THREE.Object3D, r: number, a: number, y = 0) => { o.position.copy(polar(r, a, y)); o.lookAt(0, o.position.y, 0); R.add(o); return o; };
   const front = [D(20), D(-20), D(28), D(-28)];
+  // decoración de la grada: solo en los pasillos y extremos (las filas están ocupadas por el público)
+  const spots = tierSpots();
+  const onTier = (n: number, mk: (k: number) => THREE.Object3D) => { for (let k = 0; k < Math.min(n, spots.length); k++) { const sp = spots[k]; place(mk(k), sp.r, sp.a, sp.y); } };
   switch (th.decor) {
     case 'halloween': {
       for (const a of [D(24), D(-24), D(30), D(-30), D(175), D(-175)]) place(pumpkin(1.2), 7 + Math.random(), a);
-      for (let k = 0; k < 10; k++) place(pumpkin(0.5), 9.3, (k < 5 ? 1 : -1) * D(45 + (k % 5) * 25), 1.7);
+      onTier(10, () => pumpkin(0.5));
       particles(st, 60, [0x9b3cff, 0xff7a18], 0.18, 0.4, false);
       // murciélagos
       const bats: THREE.Object3D[] = [];
@@ -132,7 +135,7 @@ export function buildDecor(st: Studio, th: Theme) {
       break;
     }
     case 'nochebuena': {
-      for (let k = 0; k < 20; k++) place(candle(), 9.2, (k % 2 ? 1 : -1) * D(40 + Math.floor(k / 2) * 13), 1.7);
+      onTier(20, () => candle());
       for (const a of front) place(candle(), 4.4, a, 0);
       const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.6), new THREE.MeshBasicMaterial({ color: 0xffe08a })); star.position.set(0, 6.2, -11); star.scale.set(1, 1.5, 0.3); R.add(star);
       st.anim.push((dt, t) => { star.rotation.y = Math.sin(t) * 0.3; });
@@ -141,7 +144,7 @@ export function buildDecor(st: Studio, th: Theme) {
     }
     case 'ninos': {
       const cols = [0xff4f4f, 0xffd23a, 0x39c8ff, 0x5fff8a, 0xff5fb0, 0xb07aff];
-      for (let k = 0; k < 18; k++) place(balloon(cols[k % 6]), 9.4 + (k % 2) * 0.5, (k % 2 ? 1 : -1) * D(30 + Math.floor(k / 2) * 16), 1.7);
+      onTier(18, (k) => balloon(cols[k % 6]));
       for (const a of front) place(balloon(cols[Math.floor(Math.random() * 6)]), 4.6, a);
       particles(st, 120, cols, 0.1, 0.3, true);
       break;
@@ -162,7 +165,7 @@ export function buildDecor(st: Studio, th: Theme) {
       clock.position.set(0, 6.3, -11.3); R.add(clock);
       const b = textBanner('¡FELIZ AÑO NUEVO!', '#ffe08a', 6, 1); b.position.set(0, 1.0, -10.95); R.add(b);
       const cols = [0xffe08a, 0xd0d8ff, 0xffffff];
-      for (let k = 0; k < 14; k++) place(balloon(cols[k % 3]), 9.4, (k % 2 ? 1 : -1) * D(30 + Math.floor(k / 2) * 18), 1.7);
+      onTier(14, (k) => balloon(cols[k % 3]));
       particles(st, 350, cols, 0.09, 0.7, true);
       break;
     }
@@ -190,7 +193,7 @@ export function buildDecor(st: Studio, th: Theme) {
       st.anim.push((dt, t) => { big.scale.setScalar(1 + Math.sin(t * 2.2) * 0.04); spin.forEach((m, i) => { m.rotation.y = t * 0.9 + i * Math.PI; m.position.y = 5.6 + Math.sin(t * 1.5 + i) * 0.2; }); });
       const b = textBanner('ESPECIAL 300 SUSCRIPTORES · Ikeriano el campeón 2', '#ffe08a', 7.2, 0.6); b.position.set(0, 1.0, -10.95); R.add(b);
       const cols = [0xffd23a, 0xffffff, 0xff3b4a, 0xfff3c0];
-      for (let k = 0; k < 14; k++) place(balloon(cols[k % 4]), 9.4, (k % 2 ? 1 : -1) * D(30 + Math.floor(k / 2) * 18), 1.7);
+      onTier(14, (k) => balloon(cols[k % 4]));
       particles(st, 450, cols, 0.1, 0.8, true);
       break;
     }

@@ -108,6 +108,8 @@ export class Bank {
   constructor(public theme: ThemeId, public onlyOriginal = false) { }
   private pick(pool: Q[]) { const free = pool.filter(q => !this.used.has(q.id)); if (!free.length) return null; const q = free[Math.floor(Math.random() * free.length)]; this.used.add(q.id); return q; }
   private sb3Range(a: number, b: number) { const r: Q[] = []; for (let i = a; i <= b; i++) r.push(sb3Question(i)); return r; }
+  /** ¿la ronda 5 usa las «Palabra gallina» del Scratch? */
+  gallina5() { return !(!this.onlyOriginal && hasThemePool(this.theme as ThemeId)); }
   /** ronda: 1..8 ; en la ronda 5 el Scratch usa las "Palabra gallina" (81-90) */
   next(ronda: number | 'FINAL' | 'normal' | 'gallina'): Q {
     const themed = !this.onlyOriginal && hasThemePool(this.theme as ThemeId);

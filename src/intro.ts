@@ -4,12 +4,14 @@ import { Hud, Session, ABORT } from './hud';
 import { audio } from './assets';
 import { canvasTex } from './tex';
 import { logoCanvas, LOGO_PAL, bangPath, metalFill, drawBadge } from './logo';
-import { CREDITOS } from './credits';
+import { CREDITOS, creditosFinal } from './credits';
 import { TOP } from './set3d';
 import { gesture } from './people';
 import { confettiBurst } from './decor';
 import { despedidaTexto } from './lines';
 import { CUSTOM, customReady } from './customaudio';
+import { publico } from './publico';
+import { crowd } from './crowd';
 
 /** Ejecuta una escena que se puede saltar con el botón "Saltar" */
 export async function skippable(main: Session, hud: Hud, fn: (s: Session) => Promise<void>) {
@@ -50,10 +52,12 @@ export async function cabecera(eng: Engine, hud: Hud, main: Session, extraDramat
       fx.flash();
       await at(HIT.flash);
       // ---- 3,5-6,8 s: ¡AHORA CAIGO! sobre la trampilla central, órbita lenta a la derecha
-      fx.phase = 'logo';
+      fx.phase = 'logo'; publico.vitores(2.8, 0.7);
       await at(HIT.corte);
       // ---- corte seco al plató: dron
       fx.phase = 'off'; eng.lights?.event('ganador');
+      // el público da palmas al ritmo de la música durante los planos del dron
+      publico.ritmo(CAB_MUSIC, HIT.corte + 0.2, HIT.fin - 0.3, 0.5);
       hud.hashtag(eng.theme.hashtag || CREDITOS.hashtag);
       const lines = [...CREDITOS.cabecera, 'Modo: ' + eng.theme.name];
       if (eng.theme.banner) lines.unshift(eng.theme.banner);
@@ -84,7 +88,7 @@ export async function cabecera(eng: Engine, hud: Hud, main: Session, extraDramat
       await at(HIT.fin);
     });
   } finally {
-    fx.dispose(); eng.override = null; hud.clearLowerThirds(); document.getElementById('introFlash')?.remove();
+    fx.dispose(); eng.override = null; hud.clearLowerThirds(); document.getElementById('introFlash')?.remove(); crowd.stopBeat(); eng.audience?.react('idle');
     eng.host.root.visible = hostVis; eng.player.root.visible = playerVis;
     eng.lights?.event('intro');
   }
@@ -213,7 +217,7 @@ export async function despedida(eng: Engine, hud: Hud, main: Session, resultLine
   document.body.classList.add('outro');
   try { await skippable(main, hud, async (s) => {
     hud.hideBubble();
-    audio.playMusic(OUT_MUSIC(), false, 1, 1.2); audio.applause(6);
+    audio.playMusic(OUT_MUSIC(), false, 1, 1.2); publico.ovacion(7);
     // plano general de los atriles
     eng.opps.forEach(o => { if (o.root.visible) gesture(o, 'arriba', 3); });
     eng.cut(new THREE.Vector3(-9, 4.5, 6), new THREE.Vector3(3, 1.6, -2)); eng.glide(new THREE.Vector3(9, 4.5, 6), new THREE.Vector3(-3, 1.6, -2), 3.5);
@@ -223,8 +227,8 @@ export async function despedida(eng: Engine, hud: Hud, main: Session, resultLine
     eng.host.root.position.set(0, TOP, 0); eng.face(eng.host, new THREE.Vector3(0, 1, 8));
     await s.w(3200);
     eng.cut(new THREE.Vector3(0.6, TOP + 1.7, 3.6), new THREE.Vector3(0, TOP + 1.3, 0));
-    hud.credits([...(th.credito ? [th.credito] : []), ...CREDITOS.final.map(([a, b]) => [a, b] as [string, string[]]), resultLine], 16);
-    gesture(eng.host, 'aplaude', 2.4);
+    hud.credits([...(th.credito ? [th.credito] : []), ...creditosFinal().map(([a, b]) => [a, b] as [string, string[]]), resultLine], 16);
+    gesture(eng.host, 'aplaude', 2.4); publico.aplauso(3, 0.6);
     await s.w(1200);
     let said = false; hud.say(texto, 6500).then(() => { said = true; });
     gesture(eng.host, 'gracias', 1.8); await s.w(1800);
@@ -235,8 +239,9 @@ export async function despedida(eng: Engine, hud: Hud, main: Session, resultLine
     document.getElementById('credits')!.classList.add('fadeout');
     eng.startOrbit(new THREE.Vector3(0, 0, 0), 9.5, 11, 0, 0.35, 0);
     await s.w(1500);
-    audio.play('AhoraCaigo - Queda.mp3'); audio.play('DropM.mp3');
+    audio.play('AhoraCaigo - Queda.mp3'); audio.play('DropM.mp3'); publico.ooh(0.9);
     await eng.fall(eng.host, 0);
+    publico.ovacion(4, 0.8);
     hud.hideCredits();
     const fin = document.createElement('div'); fin.id = 'finCard';
     fin.style.cssText = 'position:absolute;inset:0;z-index:14;pointer-events:none';

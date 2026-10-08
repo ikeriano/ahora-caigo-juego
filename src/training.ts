@@ -8,8 +8,10 @@ import { fmt } from './hud';
 import { L, fill } from './lines';
 import { duelo1v1 } from './duelo';
 import { showVidas } from './prueba';
+import { publico } from './publico';
+import { PruebaId, tarjetaPrueba, jugarPrueba, eleccionCentral } from './pruebas';
 
-export type TrainKind = 'pruebas' | 'sintiempo' | 'gallina' | 'final' | 'huellas' | 'duelo';
+export type TrainKind = 'pruebas' | 'sintiempo' | 'gallina' | 'final' | 'huellas' | 'duelo' | 'entretres' | 'adivina' | 'dameletra' | 'sino' | 'eleccion';
 
 async function colocar(c: Ctx) {
   const e = c.eng; e.resetPositions(); e.walkMode(false);
@@ -25,6 +27,12 @@ export async function entrenamiento(c: Ctx, kind: TrainKind, originales: boolean
   const upd = () => hud.score(`✔ ${ok} &nbsp; ✘ ${ko} &nbsp; ⏭ ${pas}`);
   if (kind === 'huellas') return huellas(c);
   if (kind === 'duelo') return dueloEntreno(c, P);
+  if (kind === 'entretres' || kind === 'adivina' || kind === 'dameletra' || kind === 'sino') return dueloEntreno(c, P, kind);
+  if (kind === 'eleccion') {
+    eng.player.root.position.set(0.4, 0, 6.6); eng.face(eng.player, eng.host.root.position);
+    const r = await eleccionCentral(c);
+    hud.score(r.ganador === 0 ? '🏆 ¡Has sido el más rápido!' : r.ganador > 0 ? '⏱ Esta vez te han ganado' : '🤷 Nadie acertó', true); return;
+  }
   cams.player(eng); eng.cut(new THREE.Vector3(1.2, TOP + 2.4, 4.4), new THREE.Vector3(0, TOP + 0.7, 0));
   audio.playMusic('SuspenseDuelo', true, 0.6);
   upd();
@@ -59,7 +67,7 @@ export async function entrenamiento(c: Ctx, kind: TrainKind, originales: boolean
       let res: any = null; panel.showPasa(true, () => { res = res || 'pasa'; });
       panel.ask().then(v => { if (v) res = res || 'ok'; });
       await s.until(() => !!res); panel.showPasa(false); panel.stopInput();
-      if (res === 'ok') { audio.play('QuemFicaEmPé-Acerto'); hud.toast('¡CORRECTO!', 1100); }
+      if (res === 'ok') { audio.play('QuemFicaEmPé-Acerto'); publico.aplauso(2, 0.6); hud.toast('¡CORRECTO!', 1100); }
       await panel.reveal(); r = res;
     } else {
       P.vidas = 99; r = await P.pregunta(kind === 'gallina' ? 'gallina' as any : 'normal' as any, false);
@@ -88,7 +96,7 @@ async function huellas(c: Ctx) {
 }
 
 /** Duelo contra un oponente-bot (turnos, dos relojes, PASAR con comodín) sin caídas */
-async function dueloEntreno(c: Ctx, P: Programa) {
+async function dueloEntreno(c: Ctx, P: Programa, tipo: PruebaId = 'clasico') {
   const { eng, hud, s, panel } = c;
   const opp = (window as any).__trOpp || 1 + Math.floor(Math.random() * 10);
   P.noVidas = false; P.vidas = 2; P.vidaExtra = 0; P.rodadas = (window as any).__trRonda || 4;
@@ -96,11 +104,11 @@ async function dueloEntreno(c: Ctx, P: Programa) {
   eng.face(eng.player, o.root.position); eng.face(o, eng.player.root.position);
   eng.studio.setHoleColor(opp, eng.theme.accent);
   cams.opp(eng, opp); gesture(o, 'saluda', 1.4);
-  hud.say(L.trDuelo, 3500); await s.w(3200);
+  if (tipo === 'clasico') { hud.say(L.trDuelo, 3500); await s.w(3200); } else await tarjetaPrueba(c, tipo);
   audio.play('AhoraCaigo - ComeceDuelo.mp3'); hud.subs('AhoraCaigo - ComeceDuelo.mp3', false);
   cams.duel(eng, opp, 1.4); await s.w(1800);
   audio.playMusic('SuspenseDuelo', true, 0.6);
-  const r = await duelo1v1(P, opp, { training: true });
+  const r = await jugarPrueba(P, opp, tipo, { training: true });
   panel.hideAll(400); showVidas(-1, false); audio.stopMusic(0.6);
   hud.score(r === 'win' ? '🏆 ¡Duelo ganado!' : '⏱ Duelo perdido', true);
   gesture(r === 'win' ? eng.player : o, 'arriba', 2.5); gesture(eng.host, r === 'win' ? 'aplaude' : 'habla', 2.5);

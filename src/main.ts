@@ -12,13 +12,19 @@ import { entrenamiento, TrainKind } from './training';
 import { logoCanvas } from './logo';
 import { TOP } from './set3d';
 import { loadOpts, saveOpts, Opts } from './options';
-import { CREDITOS, VERSION } from './credits';
+import { CREDITOS, VERSION, creditosFinal } from './credits';
+import { cons, RIVALES } from './concursantes';
+import { historia, lineasHistoria } from './historia';
+import { lineasPruebas, lineasEleccion, planPruebas } from './pruebas';
+import { lineasVoz, VOCES } from './concursantes';
 import { L, allLines } from './lines';
 import { voice, hashText } from './voice';
 import { setupLightsUI } from './lightsui';
 import { isMobile } from './engine';
 import { gesture } from './people';
 import { initCustomAudio, customInfo, setCustomAudio, clearCustomAudio, customReady, CUSTOM } from './customaudio';
+import { crowd, estimateBeat } from './crowd';
+import { publico, publicoLog } from './publico';
 
 const $ = (id: string) => document.getElementById(id)!;
 const q = new URLSearchParams(location.search);
@@ -29,13 +35,23 @@ let originales = localStorage.getItem('ac_orig') === '1';
 let opts: Opts;
 
 async function boot() {
-  await loadManifest(); initAudio(); await voice.load(); initCustomAudio();
-  eng = new Engine($('c3d') as HTMLCanvasElement, imgUrl(costume('Menu', 1).f));
+  await loadManifest(); initAudio(); crowd.init(); await voice.load(); initCustomAudio();
+  eng = new Engine($('c3d') as HTMLCanvasElement, imgUrl(costume('Menu', 1).f)); publico.bind(eng);
+  { const o0 = loadOpts(isMobile ? 'media' : 'alta'); eng.showAudience = o0.gradas; }
   eng.setTheme(themeById(themeId));
   opts = loadOpts(isMobile ? 'media' : 'alta'); eng.quality = 'x' as any; applyOpts();
   setupControls(eng, $('touch'));
   hud = new Hud(eng); st = new Stage2D($('stage2d'), $('stageBox')); panel = new Panel();
-  Object.assign(window as any, { __eng: eng, __hud: hud, __st: st, __panel: panel, THREE, __startMode: startMode, __menu: showMenu, __allLines: allLines, __voice: voice, __hashText: hashText, __audio: audio, __custom: { setCustomAudio, clearCustomAudio, customInfo, customReady } });
+  cons.onChange(() => eng.studio?.refreshNames());
+  // todas las frases pregenerables: presentador (allLines + presentaciones + historia) y oponentes (op1..op10)
+  (window as any).__voiceLines = () => {
+    const out = new Map<string, { t: string; v?: string; h: string }>();
+    const add = (t: string, v?: string) => { const h = voice.key(t, v); if (!out.has(h)) out.set(h, { t, v, h }); };
+    allLines().forEach(t => add(t)); lineasVoz().forEach(l => add(l.t, l.v)); lineasHistoria().forEach(t => add(t)); lineasPruebas().forEach(t => add(t)); lineasEleccion().forEach(t => add(t));
+    return [...out.values()];
+  };
+  (window as any).__voces = VOCES; (window as any).__planPruebas = planPruebas;
+  Object.assign(window as any, { __cons: cons, __eng: eng, __hud: hud, __st: st, __panel: panel, THREE, __startMode: startMode, __menu: showMenu, __allLines: allLines, __voice: voice, __hashText: hashText, __audio: audio, __custom: { setCustomAudio, clearCustomAudio, customInfo, customReady }, __publico: publico, __crowd: crowd, __publicoLog: publicoLog, __estimateBeat: estimateBeat });
   $('btnMenu').onclick = (e) => { e.stopPropagation(); if (session) { if (confirm('¿Volver al menú? Se perderá la partida.')) stopMode(); } else showMenu('main'); };
   const lui = setupLightsUI(eng);
   $('btnLuces').onclick = (e) => { e.stopPropagation(); lui.toggle(); };
@@ -56,7 +72,8 @@ async function boot() {
 }
 
 // ------------------------------------------------------------------ MENÚS
-type Screen = 'title' | 'main' | 'play' | 'train' | 'options' | 'help' | 'credits';
+type Screen = 'title' | 'main' | 'play' | 'train' | 'options' | 'help' | 'credits' | 'concursantes';
+const esc = (t: string) => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as any)[c]);
 let screen: Screen = 'title';
 const isApk = !!(window as any).AndroidKb || /; wv\)/.test(navigator.userAgent);
 let installEvt: any = null;
@@ -100,6 +117,7 @@ function showMenu(sc: Screen = 'main') {
     col.append(
       btn('Jugar', 'Programa completo, entrenamiento, clásico…', 'gold', () => showMenu('play')),
       btn('Opciones', 'Sonido, calidad gráfica, pantalla completa', '', () => showMenu('options')),
+      btn('La historia de ¡Ahora Caigo!', 'El Presentador te cuenta la historia del programa', 'hist', () => startMode('historia')),
       btn('Cómo se juega', 'Las reglas del concurso', '', () => showMenu('help')),
       btn('Créditos', '', '', () => showMenu('credits')),
     );
@@ -128,6 +146,11 @@ function showMenu(sc: Screen = 'main') {
       T('pruebas', 'Pruebas con reloj', '30 segundos por pregunta'),
       T('sintiempo', 'Pruebas sin tiempo', 'Tómatelo con calma'),
       T('gallina', 'Palabra gallina', 'Las preguntas especiales del duelo 5'),
+      T('entretres', 'Entre tres', 'Tres respuestas y 5 segundos, contra un oponente'),
+      T('adivina', 'Adivina', 'Pistas una a una: ¡pulsa «LO SÉ»!'),
+      T('dameletra', '¡Dame letra!', 'Pide letras y di la frase entera en 10 segundos'),
+      T('sino', '¿Sí o no?', 'Una pregunta cada uno, 5 segundos: ¡SÍ o NO!'),
+      T('eleccion', 'Elección del central', 'El más rápido con la tableta'),
       T('final', 'Juego final', '10 preguntas en 2 minutos'),
       T('huellas', 'Huellas y moneda', 'Elige huellas y prueba la moneda'),
     );
@@ -138,21 +161,21 @@ function showMenu(sc: Screen = 'main') {
     row.append(o, backBtn('play')); col.appendChild(row);
   } else if (sc === 'options') {
     col.classList.add('opts'); col.appendChild(h2('Opciones'));
-    const tog = (label: string, k: 'music' | 'sfx', vk: 'musicVol' | 'sfxVol') => {
-      const r = document.createElement('div'); r.className = 'orow';
+    const tog = (label: string, k: 'music' | 'sfx' | 'publico', vk: 'musicVol' | 'sfxVol' | 'publicoVol', id = '') => {
+      const r = document.createElement('div'); r.className = 'orow'; if (id) r.id = id;
       const b = document.createElement('button'); const upd = () => { b.className = 'tbtn' + (opts[k] ? ' sel' : ''); b.textContent = opts[k] ? 'Sí' : 'No'; };
       b.onclick = (e) => { e.stopPropagation(); opts[k] = !opts[k]; upd(); applyOpts(); audio.play('Tecla'); }; upd();
       const sl = document.createElement('input'); sl.type = 'range'; sl.min = '0'; sl.max = '100'; sl.value = String(Math.round(opts[vk] * 100));
-      sl.oninput = () => { opts[vk] = +sl.value / 100; applyOpts(); }; sl.onchange = () => audio.play('Tecla');
+      sl.oninput = () => { opts[vk] = +sl.value / 100; applyOpts(); }; sl.onchange = () => { if (k === 'publico') publico.aplauso(1.5, 0.8); else audio.play('Tecla'); };
       const l = document.createElement('label'); l.textContent = label; r.append(l, b, sl); return r;
     };
-    col.append(tog('🎵 Música', 'music', 'musicVol'), musicaCabecera(), tog('🔊 Efectos', 'sfx', 'sfxVol'));
+    col.append(tog('🎵 Música', 'music', 'musicVol'), musicaCabecera(), tog('🔊 Efectos', 'sfx', 'sfxVol'), opcionesPublico(tog));
     const onoff = (label: string, k: 'voz' | 'chistes') => {
       const r = document.createElement('div'); r.className = 'orow'; const l = document.createElement('label'); l.textContent = label;
       const b = document.createElement('button'); const upd = () => { b.className = 'tbtn' + (opts[k] ? ' sel' : ''); b.textContent = opts[k] ? 'Sí' : 'No'; };
       b.onclick = (e) => { e.stopPropagation(); opts[k] = !opts[k]; upd(); applyOpts(); audio.play('Tecla'); }; upd(); r.append(l, b); return r;
     };
-    col.append(onoff('🎤 Voz del presentador', 'voz'), onoff('😄 Chistes del presentador', 'chistes'));
+    col.append(onoff('🎤 Voz del presentador', 'voz'), onoff('😄 Chistes del presentador', 'chistes'), opcionesConcursantes());
     const q = document.createElement('div'); q.className = 'orow'; const ql = document.createElement('label'); ql.textContent = '✨ Calidad gráfica'; q.appendChild(ql);
     for (const v of ['baja', 'media', 'alta'] as const) { const b = document.createElement('button'); b.className = 'tbtn' + (opts.quality === v ? ' sel' : ''); b.textContent = v[0].toUpperCase() + v.slice(1); b.onclick = (e) => { e.stopPropagation(); opts.quality = v; applyOpts(); showMenu('options'); }; q.appendChild(b); }
     const f = document.createElement('div'); f.className = 'orow'; const fl = document.createElement('label'); fl.textContent = '⛶ Pantalla completa'; f.appendChild(fl);
@@ -161,6 +184,8 @@ function showMenu(sc: Screen = 'main') {
     if (isApk) fb.disabled = true, fb.textContent = 'Siempre (app)';
     const info = document.createElement('p'); info.className = 'mtext'; info.textContent = `Rendimiento actual: ${Math.round(eng.fps)} fps. Si el juego va lento en tu móvil, elige calidad «Baja».`;
     col.append(q, f, info, backBtn('main'));
+  } else if (sc === 'concursantes') {
+    col.classList.add('opts'); col.appendChild(h2('Concursantes')); pantallaConcursantes(col);
   } else if (sc === 'help') {
     col.classList.add('text'); col.append(backBtn('main'), h2('Cómo se juega'));
     const p = document.createElement('div'); p.className = 'mtext';
@@ -176,7 +201,7 @@ function showMenu(sc: Screen = 'main') {
   } else if (sc === 'credits') {
     col.classList.add('text'); col.append(backBtn('main'), h2('Créditos'));
     const p = document.createElement('div'); p.className = 'mtext';
-    p.innerHTML = CREDITOS.final.map(([a, b]) => `<p><b>${a}</b><br>${b.join('<br>')}</p>`).join('') + `<p><b>Especial 300 suscriptores</b><br>Dedicado a los suscriptores del canal de YouTube «Ikeriano el campeón 2»</p><p><b>${CREDITOS.produccion}</b></p><p class="small">Versión ${VERSION}</p><p class="small">Juego de fans sin ánimo de lucro. «¡Ahora Caigo!» es un formato de televisión de sus respectivos dueños; este juego no está afiliado a ninguna cadena. El presentador es un personaje virtual inventado.</p>`;
+    p.innerHTML = creditosFinal().map(([a, b]) => `<p><b>${esc(a)}</b><br>${b.map(esc).join('<br>')}</p>`).join('') + `<p><b>Especial 300 suscriptores</b><br>Dedicado a los suscriptores del canal de YouTube «Ikeriano el campeón 2»</p><p><b>${CREDITOS.produccion}</b></p><p class="small">Versión ${VERSION}</p><p class="small">Juego de fans sin ánimo de lucro. «¡Ahora Caigo!» es un formato de televisión de sus respectivos dueños; este juego no está afiliado a ninguna cadena. El presentador es un personaje virtual inventado.</p>`;
     col.append(p);
   }
   const ver = document.createElement('div'); ver.className = 'mver'; ver.textContent = 'v' + VERSION; box.appendChild(ver);
@@ -244,13 +269,75 @@ async function toggleFullscreen() {
     else { await document.documentElement.requestFullscreen({ navigationUI: 'hide' } as any); try { await (screen as any).orientation?.lock?.('landscape'); } catch { } }
   } catch { hud.toast('Tu navegador no permite pantalla completa aquí', 2500); }
 }
-function applyOpts() { audio.setLevels(opts); voice.enabled = opts.voz; voice.jokes = opts.chistes; if (eng.quality !== opts.quality) eng.setQuality(opts.quality); saveOpts(opts); }
+function applyOpts() { audio.setLevels(opts); crowd.setLevel(opts.publico, opts.publicoVol); voice.enabled = opts.voz; voice.jokes = opts.chistes; if (eng.quality !== opts.quality) eng.setQuality(opts.quality); eng.setAudienceVisible(opts.gradas); saveOpts(opts); }
+
+/** Opciones › Público: sonido (sí/no + volumen) y si se ve el público en las gradas */
+function opcionesPublico(tog: (label: string, k: 'publico', vk: 'publicoVol', id?: string) => HTMLElement) {
+  const box = document.createElement('div'); box.className = 'ocustom opub'; box.id = 'optPublico';
+  const row = tog('👏 Público', 'publico', 'publicoVol', 'rowPublico'); box.appendChild(row);
+  const r2 = document.createElement('div'); r2.className = 'orow'; const l2 = document.createElement('label'); l2.textContent = '👥 Público en las gradas';
+  const b2 = document.createElement('button'); b2.id = 'btnGradas'; const upd = () => { b2.className = 'tbtn' + (opts.gradas ? ' sel' : ''); b2.textContent = opts.gradas ? 'Sí' : 'No'; };
+  b2.onclick = (e) => { e.stopPropagation(); opts.gradas = !opts.gradas; upd(); applyOpts(); audio.play('Tecla'); }; upd(); r2.append(l2, b2); box.appendChild(r2);
+  const n = document.createElement('p'); n.className = 'onote'; n.textContent = 'Aplausos, vítores y «oooh» del público. Son sonidos sintetizados por el propio juego (no son grabaciones). Si tu móvil va justo, quitar el público de las gradas ayuda.'; box.appendChild(n);
+  return box;
+}
+/** Opciones › Concursantes: resumen + botón para editar */
+function opcionesConcursantes() {
+  const box = document.createElement('div'); box.className = 'ocustom'; box.id = 'optConcursantes';
+  const t = document.createElement('div'); t.className = 'olabel'; t.textContent = '👥 Concursantes'; box.appendChild(t);
+  const n = document.createElement('div'); n.className = 'oname';
+  n.textContent = (cons.central ? `Tú: ${cons.central}${cons.profesion ? ' · ' + cons.profesion : ''}` : 'Tú: sin nombre') + ' · Oponentes: ' + RIVALES.map((_, i) => cons.rival(i + 1)).join(', ');
+  const row = document.createElement('div'); row.className = 'orow obtns';
+  const b = document.createElement('button'); b.className = 'tbtn sel'; b.id = 'btnConcursantes'; b.textContent = '✏️ Nombres y profesiones';
+  b.onclick = (e) => { e.stopPropagation(); audio.play('Tecla'); showMenu('concursantes'); };
+  row.appendChild(b); box.append(n, row); return box;
+}
+/** Pantalla de edición de los concursantes (se guarda al escribir, solo en este dispositivo) */
+function pantallaConcursantes(col: HTMLElement) {
+  const inp = (id: string, val: string, ph: string, max: number, on: (v: string) => void) => {
+    const i = document.createElement('input'); i.type = 'text'; i.id = id; i.className = 'otext'; i.value = val; i.placeholder = ph; i.maxLength = max;
+    i.autocomplete = 'off'; i.spellcheck = false; i.addEventListener('input', () => on(i.value)); i.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') i.blur(); });
+    i.addEventListener('pointerdown', e => e.stopPropagation()); return i;
+  };
+  const c = document.createElement('div'); c.className = 'ocustom'; c.id = 'optCentral';
+  const ct = document.createElement('div'); ct.className = 'olabel'; ct.textContent = '⭐ El central (tú)';
+  const r1 = document.createElement('div'); r1.className = 'orow ofield'; const l1 = document.createElement('label'); l1.textContent = 'Nombre';
+  r1.append(l1, inp('inCentral', cons.central, 'Tu nombre', 18, v => cons.set('central', v)));
+  const r2 = document.createElement('div'); r2.className = 'orow ofield'; const l2 = document.createElement('label'); l2.textContent = 'Profesión';
+  r2.append(l2, inp('inProfesion', cons.profesion, 'Ej.: estudiante, youtuber, cocinero…', 60, v => cons.set('profesion', v)));
+  const cn = document.createElement('p'); cn.className = 'onote small'; cn.textContent = 'El Presentador te presentará al empezar el Programa completo. Tu nombre sale en el marcador del duelo y en los créditos.';
+  c.append(ct, r1, r2, cn);
+  const o = document.createElement('div'); o.className = 'ocustom'; o.id = 'optRivales';
+  const ot = document.createElement('div'); ot.className = 'olabel'; ot.textContent = '🎯 Los 10 oponentes';
+  const grid = document.createElement('div'); grid.className = 'orivales';
+  RIVALES.forEach((r, i) => {
+    const row = document.createElement('div'); row.className = 'oriv';
+    const num = document.createElement('b'); num.textContent = String(i + 1);
+    const box = document.createElement('div'); const job = document.createElement('small'); job.textContent = r.job;
+    box.append(inp('inRival' + (i + 1), cons.rival(i + 1), r.def, 18, v => cons.setRival(i + 1, v)), job);
+    row.append(num, box); grid.appendChild(row);
+  });
+  o.append(ot, grid);
+  const pr = document.createElement('div'); pr.className = 'orow'; const pl = document.createElement('label'); pl.textContent = '🎙️ Presentaciones con el Presentador';
+  const pb = document.createElement('button'); pb.id = 'btnPresentaciones'; const upd = () => { pb.className = 'tbtn' + (cons.presentaciones ? ' sel' : ''); pb.textContent = cons.presentaciones ? 'Sí' : 'No'; };
+  pb.onclick = (e) => { e.stopPropagation(); cons.setPresentaciones(!cons.presentaciones); upd(); audio.play('Tecla'); }; upd(); pr.append(pl, pb);
+  const er = document.createElement('div'); er.className = 'orow'; const el = document.createElement('label'); el.textContent = '📱 Elección del central (tabletas)';
+  const eb = document.createElement('button'); eb.id = 'btnEleccion'; const upe = () => { eb.className = 'tbtn' + (cons.eleccion ? ' sel' : ''); eb.textContent = cons.eleccion ? 'Sí' : 'No'; };
+  eb.onclick = (e) => { e.stopPropagation(); cons.setEleccion(!cons.eleccion); upe(); audio.play('Tecla'); }; upe(); er.append(el, eb);
+  const note = document.createElement('p'); note.className = 'mtext onote2';
+  note.textContent = 'Se guarda solo en este dispositivo. Los nombres salen en los rótulos de las trampillas, los bocadillos y los créditos. La voz del Presentador es sintética y genérica: las frases con nombres personalizados se leen en el bocadillo; si tu dispositivo tiene voz en español, tu nombre y profesión los dice esa voz.';
+  const row = document.createElement('div'); row.className = 'mrow';
+  const rs = document.createElement('button'); rs.className = 'tbtn'; rs.id = 'btnResetNombres'; rs.textContent = '↺ Nombres por defecto';
+  rs.onclick = (e) => { e.stopPropagation(); audio.play('Tecla'); cons.reset(); showMenu('concursantes'); };
+  row.append(rs, backBtn('options'));
+  col.append(c, o, pr, er, note, row);
+}
 /** Botón «atrás» (Android): devuelve false si ya estamos en la portada */
 function back(): boolean {
   if (!$('classicWrap').classList.contains('hidden')) { ($('classicBack') as HTMLButtonElement).click(); return true; }
   document.querySelector('#menu .modal')?.remove();
   if (session) { stopMode(); return true; }
-  const up: Record<Screen, Screen | null> = { title: null, main: 'title', play: 'main', train: 'play', options: 'main', help: 'main', credits: 'main' };
+  const up: Record<Screen, Screen | null> = { title: null, main: 'title', play: 'main', train: 'play', options: 'main', help: 'main', credits: 'main', concursantes: 'options' };
   const to = up[screen]; if (!to) return false; showMenu(to); return true;
 }
 (window as any).__back = back;
@@ -288,6 +375,9 @@ async function startMode(mode: string, sub?: any) {
       await entrenamiento(c, sub || 'pruebas', originales);
       hud.actions([{ label: 'Repetir', cls: 'gold', fn: () => startMode('entrenamiento', sub) }, { label: 'Entrenamiento', fn: () => { if (session) session.alive = false; session = null; menuMusic = false; showMenu('train'); } }]);
       await s.until(() => false);
+    } else if (mode === 'historia') {
+      await historia(c, +(sub || 0));
+      if (session === s) { session.alive = false; session = null; menuMusic = false; showMenu('main'); }
     } else if (mode === 'explorar') {
       eng.player.root.position.set(0, 0, 10.5); eng.player.root.rotation.y = Math.PI; eng.walkMode(true);
       hud.hint('🕹️ Joystick / WASD para andar · arrastra para mirar · 👁 cambia de cámara');

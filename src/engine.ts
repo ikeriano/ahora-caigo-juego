@@ -3,6 +3,7 @@ import { LightRig } from './lights';
 import { Studio, TOP } from './set3d';
 import { Theme } from './themes';
 import { Person, makeMannequin, makeHost, animatePerson } from './people';
+import { Audience } from './audience';
 
 export const isMobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || (matchMedia('(pointer:coarse)').matches);
 
@@ -13,6 +14,8 @@ type Shot = { pos: THREE.Vector3; look: THREE.Vector3 };
 export class Engine {
   renderer: THREE.WebGLRenderer; scene = new THREE.Scene(); camera: THREE.PerspectiveCamera;
   studio!: Studio; theme!: Theme; lights: LightRig | null = null;
+  /** público de las gradas (v1.3); null si está desactivado en Opciones */
+  audience: Audience | null = null; showAudience = true; audienceMs = 0;
   player!: Person; host!: Person; opps: Person[] = [];
   clock = new THREE.Clock();
   // control de cámara
@@ -24,6 +27,9 @@ export class Engine {
   shake = 0; freeLook = { yaw: 0, pitch: 0 };
   movers: Mover[] = []; fallers: Faller[] = [];
   onFrame: ((dt: number) => void)[] = [];
+  /** Pantalla partida (pruebas Entre tres / Adivina): dos planos [posición, mirada] lado a lado */
+  split: { a: [THREE.Vector3, THREE.Vector3]; b: [THREE.Vector3, THREE.Vector3] } | null = null;
+  private camB = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
   fps = 60; private fpsAcc = 0; private fpsN = 0;
   logoUrl: string;
   override: { scene: THREE.Scene; camera: THREE.Camera; update: (dt: number) => void } | null = null;
@@ -50,7 +56,7 @@ export class Engine {
   }
   setQuality(q: 'baja' | 'media' | 'alta') {
     const changed = this.quality !== q;
-    this.quality = q; if (changed && this.theme) this.buildLights();
+    this.quality = q; if (changed && this.theme) { this.buildLights(); this.buildAudience(); }
     const dpr = devicePixelRatio || 1;
     this.renderer.setPixelRatio(q === 'baja' ? Math.min(dpr, 1) * 0.7 : q === 'media' ? Math.min(dpr, 1.25) : Math.min(dpr, 2));
     this.resize();
@@ -74,11 +80,20 @@ export class Engine {
     this.scene.fog = new THREE.FogExp2(th.fog, 0.028);
     this.player = makeMannequin({ shirt: 0xf3b21a }); this.scene.add(this.player.root);
     this.buildLights();
+    this.buildAudience();
     this.host = makeHost(th.host); this.scene.add(this.host.root);
     this.opps = [];
     for (let i = 1; i <= 10; i++) { const p = makeMannequin(); this.opps.push(p); this.scene.add(p.root); }
     this.resetPositions();
   }
+
+  buildAudience() {
+    this.audience?.dispose(); this.audience = null;
+    if (!this.showAudience || !this.theme) return;
+    const q = this.quality === 'baja' || this.quality === 'media' || this.quality === 'alta' ? this.quality : 'media';
+    this.audience = new Audience(this.theme, q); this.scene.add(this.audience.root);
+  }
+  setAudienceVisible(on: boolean) { if (on === this.showAudience && (!!this.audience === on)) return; this.showAudience = on; this.buildAudience(); }
 
   /** Decorado dorado del Juego Final (como el 'decdesafiofinal' del Scratch). Solo cambia el plató, no los personajes. */
   gold = false;
@@ -163,7 +178,22 @@ export class Engine {
     for (const f of this.onFrame) f(dt);
     this.updateCamera(dt);
     this.extraUpdate?.(dt);
+    if (this.audience) { const t0 = performance.now(); this.camera.updateMatrixWorld(); this.audience.update(dt, this.lights, this.camera, !!this.split); this.audienceMs = this.audienceMs * 0.95 + (performance.now() - t0) * 0.05; }
+    if (this.split) { this.renderSplit(); return; }
     this.renderer.render(this.scene, this.camera);
+  }
+  private renderSplit() {
+    const w = innerWidth, h = innerHeight, r = this.renderer, cam = this.camera, sp = this.split!;
+    const fov = cam.fov, asp = cam.aspect;
+    r.setScissorTest(true);
+    const one = (c: THREE.PerspectiveCamera, v: [THREE.Vector3, THREE.Vector3], x: number) => {
+      c.position.copy(v[0]); c.lookAt(v[1]); c.fov = 50; c.aspect = (w / 2) / h; c.updateProjectionMatrix(); c.updateMatrixWorld();
+      r.setViewport(x, 0, w / 2, h); r.setScissor(x, 0, w / 2, h); r.render(this.scene, c);
+    };
+    const keep = cam.position.clone(), q = cam.quaternion.clone();
+    one(cam, sp.a, 0); one(this.camB, sp.b, w / 2);
+    cam.position.copy(keep); cam.quaternion.copy(q); cam.fov = fov; cam.aspect = asp; cam.updateProjectionMatrix();
+    r.setScissorTest(false); r.setViewport(0, 0, w, h);
   }
 
   updateWalk(dt: number) {

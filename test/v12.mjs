@@ -53,6 +53,7 @@ if (part === 'audio') {
   check(true, 'el audio sigue guardado tras recargar')
   // ---------- Programa completo con audio propio
   await ev(() => { window.__botForce = 'win'; window.__botClock = 20 })
+  await ev(() => { window.__pruebaForce = 'clasico'; window.__noEleccion = true; localStorage.setItem('ac3d_concursantes', JSON.stringify({ presentaciones: false, eleccion: false })); window.__cons.reload() })
   await ev(() => { void window.__startMode('programa') })
   await until(() => window.__audio.musicName() === 'custom:cabecera', 15000)
   check(true, 'la cabecera suena con el audio propio')
@@ -112,6 +113,7 @@ if (part === 'audio') {
   await p.goto(base + '?nosw&screen=play&theme=primetime', { waitUntil: 'load' })
   await until(() => window.__eng && document.querySelector('.mbtn.gold'))
   await ev(() => { window.__testRodadas = 7; window.__botForce = 'fail'; window.__botClock = 4 })
+  await ev(() => { window.__pruebaForce = 'clasico'; window.__noEleccion = true; localStorage.setItem('ac3d_concursantes', JSON.stringify({ presentaciones: false, eleccion: false })); window.__cons.reload() })
   await ev(() => { void window.__startMode('programa') })
   await until(() => window.__audio.musicName() != null, 15000)
   check(await musicName() === 'Trilha', 'sin audio propio la cabecera usa la música del minijuego (Trilha), no la sintonía descartada')
@@ -146,6 +148,7 @@ if (part === 'audio') {
   await p.goto(base + '?nosw&screen=play', { waitUntil: 'load' })
   await until(() => window.__eng && document.querySelector('.mbtn.gold'))
   await ev(() => { window.__meFirst = 1; window.__duelClock = 6 })
+  await ev(() => { window.__pruebaForce = 'clasico'; window.__noEleccion = true; localStorage.setItem('ac3d_concursantes', JSON.stringify({ presentaciones: false, eleccion: false })); window.__cons.reload() })
   await ev(() => { void window.__startMode('programa') })
   await sleep(2500); await p.click('#btnSkip')
   await goCenter(); await pickHuella(4)

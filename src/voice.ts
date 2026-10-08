@@ -17,24 +17,42 @@ class Voice {
   async load() { try { this.index = await (await fetch(`${BASE}voz/index.json`)).json(); } catch { this.index = {}; } }
   stop() { audio.stopTag('voz'); try { speechSynthesis?.cancel(); } catch { } this.utter = null; }
   /** Empieza a hablar; devuelve la duración aproximada en ms y una promesa de fin */
-  speak(text: string): { ms: number; done: Promise<void> } {
-    this.requested.add(text);
-    if (!this.enabled) return { ms: 0, done: Promise.resolve() };
+  speak(text: string): { ms: number; done: Promise<void> } { return this.say([text]); }
+  /** clave del audio pregenerado: voz del presentador = hash del texto; otras voces = hash de "voz|texto" */
+  key(text: string, voz?: string) { return hashText(voz ? voz + '|' + text : text); }
+  has(text: string, voz?: string) { return this.index[this.key(text, voz)] != null; }
+  /**
+   * Habla el primer texto que tenga audio pregenerado (para la voz indicada).
+   * Si ninguno lo tiene: con tts (o voz del presentador) usa la voz del dispositivo (speechSynthesis es-ES);
+   * si no, se queda en silencio (solo bocadillo).
+   */
+  say(texts: string[], o: { voz?: string; tts?: boolean; pitch?: number } = {}): { ms: number; done: Promise<void> } {
+    texts.forEach(t => this.requested.add(o.voz ? o.voz + '|' + t : t));
+    if (!this.enabled || !texts.length) return { ms: 0, done: Promise.resolve() };
     this.stop();
-    const h = hashText(text);
-    const words = text.split(/\s+/).length;
-    if (this.index[h] != null) {
-      const ms = this.index[h] * 1000;
-      const done = audio.playUrl(`${BASE}voz/${h}.mp3`, 1, 'voz').then(r => r.done);
-      return { ms, done };
+    for (const text of texts) {
+      const h = this.key(text, o.voz);
+      if (this.index[h] != null) {
+        const ms = this.index[h] * 1000;
+        const done = audio.playUrl(`${BASE}voz/${h}.mp3`, 1, 'voz').then(r => r.done);
+        return { ms, done };
+      }
     }
-    // reserva: voz del navegador
+    if (o.voz && !o.tts) return { ms: 0, done: Promise.resolve() };
+    return this.tts(texts[0], o.voz ? (o.pitch ?? 1.1) : 0.95, !o.voz);
+  }
+  /** reserva / nombres propios: voz del navegador (en el APK suele no haber; entonces no suena nada) */
+  ttsOk() { try { return !!window.speechSynthesis && speechSynthesis.getVoices().some(v => /^es/i.test(v.lang)); } catch { return false; } }
+  tts(text: string, pitch = 0.95, presentador = true): { ms: number; done: Promise<void> } {
+    const words = text.split(/\s+/).length;
     const ms = 600 + words * 330;
     try {
       const ss = window.speechSynthesis; if (!ss) return { ms: 0, done: Promise.resolve() };
-      const u = new SpeechSynthesisUtterance(text.replace(/[«»]/g, '')); u.lang = 'es-ES'; u.rate = 1.12; u.pitch = 0.95;
-      const v = ss.getVoices().find(v => /^es(-|_)ES/i.test(v.lang) && /male|hombre|jorge|pablo|diego|alvaro/i.test(v.name)) || ss.getVoices().find(v => /^es(-|_)ES/i.test(v.lang));
-      if (v) u.voice = v;
+      const u = new SpeechSynthesisUtterance(text.replace(/[«»]/g, '')); u.lang = 'es-ES'; u.rate = 1.12; u.pitch = pitch;
+      const es = ss.getVoices().filter(v => /^es(-|_)ES/i.test(v.lang)), any = ss.getVoices().filter(v => /^es/i.test(v.lang));
+      const male = (v: SpeechSynthesisVoice) => /male|hombre|jorge|pablo|diego|alvaro/i.test(v.name);
+      const v = presentador ? (es.find(male) || es[0] || any[0]) : (es.find(x => !male(x)) || es[1] || es[0] || any[0]);
+      if (v) u.voice = v; else if (!presentador) return { ms: 0, done: Promise.resolve() };
       const done = new Promise<void>(r => { u.onend = () => r(); u.onerror = () => r(); setTimeout(r, ms + 3000); });
       this.utter = u; ss.speak(u); return { ms, done };
     } catch { return { ms: 0, done: Promise.resolve() }; }

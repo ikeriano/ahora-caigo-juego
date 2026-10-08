@@ -8,7 +8,7 @@ export type Sub = 'A' | 'B';
 export const SWATCHES = [0xff0000, 0xff6a00, 0xffb000, 0xffff00, 0x9dff00, 0x00ff3c, 0x00ffa8, 0x00ffff, 0x00a8ff, 0x0040ff, 0x6a00ff, 0xb000ff, 0xff00d4, 0xff0080, 0xffd9a0, 0xffffff];
 export const SPEEDS = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 5, 10];
 export const FADES = [0.1, 0.25, 0.33, 0.5, 0.66, 0.75, 1, 1.25, 1.5, 2, 3, 5];
-export const MOVES = ['WIDE', 'IN', 'CROSS', 'U/D', 'TILT', 'RTILT', 'SMTILT', 'SLTILT', 'PAN', 'RPAN', 'SMPAN', 'SLPAN', 'CIRCLE', 'RANDOM CIRCLE'] as const;
+export const MOVES = ['WIDE', 'IN', 'CROSS', 'U/D', 'TILT', 'RTILT', 'SMTILT', 'SLTILT', 'PAN', 'RPAN', 'SMPAN', 'SLPAN', 'CIRCLE', 'RANDOM CIRCLE', 'PÚBLICO'] as const;
 export const MSPEED = { FREEZE: 0, SSLOW: 0.2, SLOW: 0.45, MEDIUM: 1, FAST: 2 } as const;
 export type ColorMode = '' | 'SECOND' | 'SWITCH' | 'SMOOTH' | 'GRADIENT' | 'FLASH';
 export type LState = 'O' | 'X' | 'FO' | 'FX' | 'RAND' | 'FRAND' | 'ORAND' | 'BRAND' | 'STROBE' | 'FLASH';
@@ -38,6 +38,8 @@ interface Fixture {
   pan: number; tilt: number; vp: number; vt: number; inten: number; color: THREE.Color; rndPh: number;
   pix?: number[]; // índices de píxeles (InstancedMesh)
   bar?: THREE.Object3D;
+  /** dirección actual del haz (mundo) — la usa el público para iluminarse */
+  dirW?: THREE.Vector3;
 }
 
 // ---------- materiales ----------
@@ -83,6 +85,9 @@ export class LightRig {
   ledMesh!: THREE.InstancedMesh; barMesh: THREE.InstancedMesh | null = null;
   washLights: THREE.PointLight[] = [];
   eventUntil = 0; nextAuto = 0; onChange: (() => void) | null = null;
+  /** color medio de los LEDs y de las LineBars de cada lado (0 = x<0, 1 = x>0): ilumina al público de las gradas */
+  ledAvg = [new THREE.Color(), new THREE.Color()]; barAvg = [new THREE.Color(), new THREE.Color()];
+  private ledSide: number[][] = [[], []];
   constructor(public th: Theme, public quality: 'baja' | 'media' | 'alta', prev?: LightRig) {
     const ids: GroupId[] = ['heads', 'linebars', 'washes', 'leds'];
     this.groups = {} as any;
@@ -151,9 +156,10 @@ export class LightRig {
     for (const sg of [-1, 1]) for (const rr of [RING_IN - 0.03, RING_OUT + 0.05]) {
       const pts: THREE.Vector3[] = []; const n = q === 'baja' ? 12 : 20;
       for (let i = 0; i < n; i++) { const a = sg * THREE.MathUtils.lerp(A0 + 0.05, A1 - 0.05, i / (n - 1)); pts.push(new THREE.Vector3(Math.sin(a) * rr, rr < 6 ? TOP + 0.02 : 0.06, Math.cos(a) * rr)); }
+      if (rr > 6) this.ledSide[sg < 0 ? 0 : 1].push(...pts.map((_, i) => ledPts.length + i));
       strip(pts);
     }
-    for (const sg of [-1, 1]) { const pts: THREE.Vector3[] = []; const n = q === 'baja' ? 12 : 22; for (let i = 0; i < n; i++) { const a = sg * THREE.MathUtils.lerp(0.5, 2.6, i / (n - 1)); pts.push(new THREE.Vector3(Math.sin(a) * (WALL_R - 0.12), 1.22, Math.cos(a) * (WALL_R - 0.12))); } strip(pts); }
+    for (const sg of [-1, 1]) { const pts: THREE.Vector3[] = []; const n = q === 'baja' ? 12 : 22; for (let i = 0; i < n; i++) { const a = sg * THREE.MathUtils.lerp(0.5, 2.6, i / (n - 1)); pts.push(new THREE.Vector3(Math.sin(a) * (WALL_R - 0.12), 1.22, Math.cos(a) * (WALL_R - 0.12))); } this.ledSide[sg < 0 ? 0 : 1].push(...pts.map((_, i) => ledPts.length + i)); strip(pts); }
     this.ledMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.05, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), ledPts.length);
     this.ledMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(ledPts.length * 3), 3);
     ledPts.forEach((p, i) => { m4.makeTranslation(p.x, p.y, p.z); this.ledMesh.setMatrixAt(i, m4); });
@@ -194,8 +200,8 @@ export class LightRig {
       case 'caida': all((s, id) => { s.colors = [0xff0000]; s.colorMode = ''; s.state = id === 'heads' ? 'O' : 'STROBE'; s.stateCue = 0; s.follow = id === 'heads' && !!at; s.mspeed = 'FAST'; }); this.pointAt = at || null; dur = 2.8; break;
       case 'fallo': all((s) => { s.colors = [0xff0000, 0x400000]; s.colorMode = 'SMOOTH'; s.state = 'O'; s.move = 'U/D'; s.mspeed = 'SLOW'; }); dur = 4; break;
       case 'final': all((s, id) => { s.rainbow = false; s.colorCue = 0; s.colors = id === 'leds' ? [0xffb000, 0xff6a00] : [0xffb000, 0xffd9a0, 0xffffff]; s.colorMode = 'GRADIENT'; s.state = 'O'; s.stateCue = id === 'leds' ? 3 : 0; s.move = 'RANDOM CIRCLE'; s.mspeed = 'MEDIUM'; s.bright = 1; }); dur = 999; break;
-      case 'ganador': all((s) => { s.rainbow = true; s.colorMode = 'GRADIENT'; s.state = 'O'; s.stateCue = 1; s.move = 'CIRCLE'; s.mspeed = 'FAST'; }); dur = 8; break;
-      case 'intro': case 'outro': all((s) => { s.rainbow = true; s.colorMode = 'GRADIENT'; s.state = 'O'; s.stateCue = 0; s.move = 'RANDOM CIRCLE'; s.mspeed = 'MEDIUM'; s.follow = false; }); dur = 10; break;
+      case 'ganador': all((s) => { s.rainbow = true; s.colorMode = 'GRADIENT'; s.state = 'O'; s.stateCue = 1; s.move = 'CIRCLE'; s.mspeed = 'FAST'; }); this.groups.heads.B.move = 'PÚBLICO'; dur = 8; break;
+      case 'intro': case 'outro': all((s) => { s.rainbow = true; s.colorMode = 'GRADIENT'; s.state = 'O'; s.stateCue = 0; s.move = 'RANDOM CIRCLE'; s.mspeed = 'MEDIUM'; s.follow = false; }); this.groups.heads.B.move = 'PÚBLICO'; dur = 10; break;
     }
     this.eventUntil = this.t + dur; this.onChange?.();
   }
@@ -207,7 +213,7 @@ export class LightRig {
     this.nextAuto = this.t + 7 + Math.random() * 5;
     const th = this.th; const pal = [th.glow, th.accent, 0xffffff, SWATCHES[Math.floor(Math.random() * SWATCHES.length)]];
     const modes: ColorMode[] = ['', 'SECOND', 'SMOOTH', 'GRADIENT', 'SWITCH'];
-    const mv = ['SMTILT', 'SMPAN', 'CIRCLE', 'RANDOM CIRCLE', 'WIDE', 'CROSS', 'SLPAN', 'TILT'];
+    const mv = ['SMTILT', 'SMPAN', 'CIRCLE', 'RANDOM CIRCLE', 'WIDE', 'CROSS', 'SLPAN', 'TILT', 'PÚBLICO', 'PÚBLICO'];
     for (const id of Object.keys(this.groups) as GroupId[]) {
       const g = this.groups[id]; const cm = modes[Math.floor(Math.random() * modes.length)]; const m = mv[Math.floor(Math.random() * mv.length)];
       for (const s of [g.A, g.B]) {
@@ -293,6 +299,11 @@ export class LightRig {
       case 'RANDOM CIRCLE': pan += Math.cos(T + rph) * 35; tilt += Math.sin(T + rph) * 22; break;
     }
     let tp = THREE.MathUtils.degToRad(pan), tt = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(tilt, -120, 120));
+    if (s.move === 'PÚBLICO' && !tiltOnly) {
+      // barrido por las gradas: el haz recorre las filas del público que tiene debajo
+      const lat = Math.sin(T * 0.8 + ph) * 3.2, inw = 0.9 + 0.45 * Math.sin(T * 1.3 + rph);
+      tp = Math.atan2(lat, inw); tt = Math.atan2(Math.hypot(lat, inw), Math.max(1, f.pos.y - 2.7));
+    } else if (s.move === 'PÚBLICO') tt = THREE.MathUtils.degToRad(-10 + Math.sin(T + ph) * 25);
     // seguir al jugador o a un punto
     const tgt = s.follow ? (this.pointAt || this.followTarget?.() || null) : null;
     if (tgt && !tiltOnly) {
@@ -322,7 +333,7 @@ export class LightRig {
         // dirección: tilt desde la vertical hacia dentro, pan alrededor de Y
         const h = f.inward.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), f.pan);
         dir.copy(h).multiplyScalar(Math.sin(f.tilt)).addScaledVector(down, Math.cos(f.tilt)).normalize();
-        q.setFromUnitVectors(down, dir); f.beam!.quaternion.copy(q);
+        q.setFromUnitVectors(down, dir); f.beam!.quaternion.copy(q); (f.dirW ||= new THREE.Vector3()).copy(dir);
         const wash = id === 'washes';
         const thick = s.thick, spread = s.spread * (wash ? 2.4 : 1);
         const tw = Math.sqrt(thick); f.beam!.scale.set((wash ? 1.6 : 0.55) * spread * tw, wash ? 0.7 : 1, (wash ? 1.6 : 0.55) * spread * tw);
@@ -370,7 +381,12 @@ export class LightRig {
         });
         gi += f.pix!.length;
       }
-      ic.needsUpdate = true; }
+      ic.needsUpdate = true;
+      const arr = ic.array as Float32Array;
+      for (let sd = 0; sd < 2; sd++) { const ids = this.ledSide[sd]; const o = this.ledAvg[sd].setRGB(0, 0, 0); for (const i of ids) { o.r += arr[i * 3]; o.g += arr[i * 3 + 1]; o.b += arr[i * 3 + 2]; } if (ids.length) o.multiplyScalar(1 / ids.length); } }
+    { const bs = this.barAvg; bs[0].setRGB(0, 0, 0); bs[1].setRGB(0, 0, 0); const n = [0, 0];
+      for (const f of this.groups.linebars.fixtures) { const sd = f.pos.x < 0 ? 0 : 1; if (f.beam!.visible) bs[sd].add(C.copy(f.color).multiplyScalar(f.inten)); n[sd]++; }
+      for (let sd = 0; sd < 2; sd++) if (n[sd]) bs[sd].multiplyScalar(1 / n[sd]); }
   }
 }
 

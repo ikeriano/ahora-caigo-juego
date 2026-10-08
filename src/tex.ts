@@ -78,6 +78,22 @@ export function vertFadeTex() {
   });
 }
 
+/** Número de la trampilla con el nombre del oponente debajo (256x200; el círculo queda en v=0.68) */
+export function numberNameTex(n: string, name: string, color = '#f7b52a') {
+  return canvasTex(256, 200, (g) => {
+    g.fillStyle = 'rgba(5,10,30,0.85)'; g.beginPath(); g.arc(128, 64, 58, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = color; g.lineWidth = 8; g.stroke();
+    g.fillStyle = '#fff'; g.font = '900 64px Arial, Roboto, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(n, 128, 68);
+    if (!name) return;
+    let fs = 38; g.font = `900 ${fs}px Arial, Roboto, sans-serif`;
+    while (g.measureText(name).width > 226 && fs > 18) { fs -= 2; g.font = `900 ${fs}px Arial, Roboto, sans-serif`; }
+    const w = Math.min(250, g.measureText(name).width + 26);
+    g.fillStyle = 'rgba(10,47,168,0.92)'; g.strokeStyle = '#8fc4ff'; g.lineWidth = 4;
+    g.beginPath(); (g as any).roundRect ? (g as any).roundRect(128 - w / 2, 132, w, 56, 26) : g.rect(128 - w / 2, 132, w, 56); g.fill(); g.stroke();
+    g.fillStyle = '#fff'; g.fillText(name, 128, 162);
+  });
+}
 export function numberTex(n: string, color = '#f7b52a') {
   return canvasTex(128, 128, (g, w) => {
     g.fillStyle = 'rgba(5,10,30,0.85)'; g.beginPath(); g.arc(64, 64, 58, 0, Math.PI * 2); g.fill();
