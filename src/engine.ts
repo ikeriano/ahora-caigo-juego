@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { LightRig } from './lights';
 import { Studio, TOP } from './set3d';
 import { Theme } from './themes';
 import { Person, makeMannequin, makeHost, animatePerson } from './people';
@@ -11,7 +12,7 @@ type Shot = { pos: THREE.Vector3; look: THREE.Vector3 };
 
 export class Engine {
   renderer: THREE.WebGLRenderer; scene = new THREE.Scene(); camera: THREE.PerspectiveCamera;
-  studio!: Studio; theme!: Theme;
+  studio!: Studio; theme!: Theme; lights: LightRig | null = null;
   player!: Person; host!: Person; opps: Person[] = [];
   clock = new THREE.Clock();
   // control de cámara
@@ -40,8 +41,16 @@ export class Engine {
   }
 
   quality: 'baja' | 'media' | 'alta' = isMobile ? 'media' : 'alta';
+  onLights: ((r: LightRig) => void) | null = null;
+  buildLights() {
+    const prev = this.lights; const q = this.quality === 'baja' || this.quality === 'media' || this.quality === 'alta' ? this.quality : 'media';
+    const r = new LightRig(this.theme, q, prev || undefined); prev?.dispose();
+    r.followTarget = () => this.player ? this.player.root.position.clone().setY(this.player.root.position.y + 1.2) : null;
+    this.lights = r; this.scene.add(r.root); this.onLights?.(r);
+  }
   setQuality(q: 'baja' | 'media' | 'alta') {
-    this.quality = q;
+    const changed = this.quality !== q;
+    this.quality = q; if (changed && this.theme) this.buildLights();
     const dpr = devicePixelRatio || 1;
     this.renderer.setPixelRatio(q === 'baja' ? Math.min(dpr, 1) * 0.7 : q === 'media' ? Math.min(dpr, 1.25) : Math.min(dpr, 2));
     this.resize();
@@ -53,6 +62,7 @@ export class Engine {
   }
 
   setTheme(th: Theme) {
+    this.gold = false;
     if (this.studio) { this.scene.remove(this.studio.root); dispose(this.studio.root); }
     for (const o of this.opps) this.scene.remove(o.root);
     if (this.player) this.scene.remove(this.player.root);
@@ -63,10 +73,24 @@ export class Engine {
     this.scene.background = new THREE.Color(th.bg);
     this.scene.fog = new THREE.FogExp2(th.fog, 0.028);
     this.player = makeMannequin({ shirt: 0xf3b21a }); this.scene.add(this.player.root);
+    this.buildLights();
     this.host = makeHost(th.host); this.scene.add(this.host.root);
     this.opps = [];
     for (let i = 1; i <= 10; i++) { const p = makeMannequin(); this.opps.push(p); this.scene.add(p.root); }
     this.resetPositions();
+  }
+
+  /** Decorado dorado del Juego Final (como el 'decdesafiofinal' del Scratch). Solo cambia el plató, no los personajes. */
+  gold = false;
+  setGoldSet(on: boolean) {
+    if (on === this.gold || !this.studio) return;
+    this.gold = on;
+    const th: Theme = on ? { ...this.theme, wallA: '#5a2200', wallB: '#e0820c', chevA: '#fff0a8', chevB: '#ffb21a', glow: 0xffb21a, accent: 0xffe08a, fog: 0x140800, bg: 0x0a0400 } : this.theme;
+    const cols = this.studio.holes.map(h => h.activeMat.color.getHex()); const st = this.studio.holes.map(h => [h.open, h.target]);
+    this.scene.remove(this.studio.root); dispose(this.studio.root);
+    this.studio = new Studio(th, this.logoUrl, isMobile); this.scene.add(this.studio.root);
+    this.studio.holes.forEach((h, i) => { this.studio.setHoleColor(i, cols[i] ?? 0xffffff); h.open = st[i]?.[0] ?? 0; h.target = st[i]?.[1] ?? 0; });
+    this.scene.background = new THREE.Color(th.bg); this.scene.fog = new THREE.FogExp2(th.fog, 0.028);
   }
 
   resetPositions() {
@@ -110,6 +134,7 @@ export class Engine {
     if (this.override) { this.override.update(dt); this.renderer.render(this.override.scene, this.override.camera); return; }
     if (!this.studio) return;
     this.studio.update(dt);
+    this.lights?.update(dt);
     // movimiento del jugador
     let pSpeed = 0;
     if (this.mode === 'walk' && this.canWalk) pSpeed = this.updateWalk(dt);

@@ -9,6 +9,9 @@ import { TOP } from './set3d';
 import { gesture } from './people';
 import { cabecera, despedida } from './intro';
 import { confettiBurst } from './decor';
+import { L, pick, fill } from './lines';
+import { Chistes, JokeCtx } from './jokes';
+import { voice } from './voice';
 
 export interface Ctx { eng: Engine; hud: Hud; st: Stage2D; panel: Panel; s: Session }
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -38,23 +41,31 @@ export const cams = {
 /** Pantalla ELIGE con las 10 huellas (MenuEscolha + MenuEscolhaop1..10). Devuelve el nº de huella */
 export async function eleccion(c: Ctx, used: Set<number>): Promise<number> {
   const { st, s, eng } = c;
-  audio.play('SomPalavra');
+  audio.play('SomPalavra@MenuEscolha'); eng.lights?.event('eleccion');
   cams.wide(eng); eng.startOrbit(V(0, 0, 0), 10.5, 5.6, 0, 0.05, 1);
-  st.show('MenuEscolha', 1, { fade: 330, z: 30 });
-  let k = 0; const anim = setInterval(() => st.show('MenuEscolha', (k++ % 2) + 1, { z: 30 }), 400);
+  const WHEEL = ['MenuEscolha', ...Array.from({ length: 10 }, (_, i) => 'MenuEscolhaop' + (i + 1))];
+  const hideWheel = (ms: number) => WHEEL.forEach(n => st.hide(n, ms));
   let pick = 0;
-  for (let n = 1; n <= 10; n++) st.show('MenuEscolhaop' + n, used.has(n) ? 2 : 1, { z: 31, fade: 170, cls: 'huella', click: used.has(n) ? undefined : () => { if (!pick) pick = n; } });
-  // también se puede elegir tocando el número en el plató 3D (atajo de teclado 1-9, 0=10 en PC)
-  const key = (e: KeyboardEvent) => { const d = '1234567890'.indexOf(e.key); if (d >= 0 && !used.has(d + 1) && !pick) pick = d + 1; };
+  st.show('MenuEscolha', 1, { fade: 330, z: 30 });
+  // parpadeo de ELIGE: se para solo en cuanto se elige o se aborta la partida (antes se quedaba vivo y la pantalla reaparecía)
+  let k = 0; const anim = setInterval(() => {
+    if (pick || !s.alive || !st.isShown('MenuEscolha')) { clearInterval(anim); return; }
+    st.show('MenuEscolha', (k++ % 2) + 1, { z: 30 });
+  }, 400);
+  for (let n = 1; n <= 10; n++) st.show('MenuEscolhaop' + n, used.has(n) ? 2 : 1, { z: 31, fade: 170, cls: 'huella', click: used.has(n) ? undefined : () => { if (!pick) { pick = n; clearInterval(anim); } } });
+  // atajo de teclado 1-9, 0=10 en PC
+  const key = (e: KeyboardEvent) => { const d = '1234567890'.indexOf(e.key); if (d >= 0 && !used.has(d + 1) && !pick) { pick = d + 1; clearInterval(anim); } };
   addEventListener('keydown', key);
-  try { await s.until(() => pick > 0); } finally { removeEventListener('keydown', key); }
-  st.show('MenuEscolhaop' + pick, 2, { z: 31, fade: 330 });
-  audio.play('SomPalavra');
-  st.show('MenuEscolha2', 1, { z: 35, fade: 330, size: 100, from: 0.5 });
-  await s.w(350); audio.play('fairydust'); await s.w(2000);
-  clearInterval(anim);
-  st.setSize('MenuEscolha2', 0, 330); st.hide('MenuEscolha2', 330);
-  for (let n = 1; n <= 10; n++) st.hide('MenuEscolhaop' + n, 170); st.hide('MenuEscolha', 170);
+  try { await s.until(() => pick > 0); }
+  catch (e) { hideWheel(0); throw e; }
+  finally { clearInterval(anim); removeEventListener('keydown', key); }
+  // la rueda ELIGE desaparece en cuanto se toca una huella
+  hideWheel(170);
+  audio.play('SomPalavra@MenuEscolha2');
+  try {
+    st.show('MenuEscolha2', 1, { z: 35, fade: 330, size: 100, from: 0.5 });
+    await s.w(350); audio.play('fairydust@MenuEscolha2'); await s.w(1600);
+  } finally { st.setSize('MenuEscolha2', 0, 330); st.hide('MenuEscolha2', 330); }
   return pick;
 }
 
@@ -68,8 +79,8 @@ export function aplicar(v: string, st: { placar: number; vidas: number; vidaExtr
 /** La moneda: elegir un lado (Moeda1 izquierda / Moeda2 derecha) */
 export async function moneda(c: Ctx, opp: number, state: { placar: number; vidas: number; vidaExtra: number; moedas: number[] }, ensayo = false) {
   const { st, s } = c;
-  audio.stopMusic(); audio.play('AhoraCaigo - Moeda.mp3');
-  st.show('Valores', 'MoedaCapa', { z: 40, fade: 170 }); audio.play('Moeda');
+  audio.stopMusic(); audio.play('AhoraCaigo - Moeda.mp3'); c.hud.subs('AhoraCaigo - Moeda.mp3', false);
+  st.show('Valores', 'MoedaCapa', { z: 40, fade: 170 }); audio.play('Moeda@Valores');
   st.show('Valores2', String(opp), { z: 42, fade: 170 });
   await s.w(1000);
   let side = 0;
@@ -82,9 +93,9 @@ export async function moneda(c: Ctx, opp: number, state: { placar: number; vidas
   let v = 0; do { v = 1 + Math.floor(Math.random() * 10); } while (state.moedas.includes(v) && state.moedas.length < 10);
   state.moedas.push(v); let cos = v; if (v === 10) cos = Math.random() < 0.5 ? 10 : 11;
   st.show('Valores', String(cos), { z: 40 });
-  audio.play('saltar'); await s.w(500);
+  audio.play('saltar@Moeda1'); await s.w(500);
   const swing = (k: number) => st.tf('Moeda' + k, k === 1 ? 'translate(-140px,40px) rotate(-35deg)' : 'translate(140px,40px) rotate(35deg)', 330);
-  swing(side); audio.play('fairydust'); await s.w(1000);
+  swing(side); audio.play('fairydust@Moeda1'); await s.w(1000);
   const val = (side === 1 ? LEFT : RIGHT)[cos], other = (side === 1 ? RIGHT : LEFT)[cos];
   aplicar(val, state);
   c.hud.toast(`Has ganado ${valorTexto(val)}` + (ensayo ? `<br><small>Al otro lado había: ${valorTexto(other)}</small>` : ''), 2600);
@@ -94,11 +105,11 @@ export async function moneda(c: Ctx, opp: number, state: { placar: number; vidas
 }
 
 export async function contagem(c: Ctx, rodadas: number) {
-  audio.play('Moeda'); audio.stopMusic(); audio.playMusic(`AhoraCaigo - Round${Math.min(8, rodadas + 1)}.mp3`);
+  audio.play('Moeda@ContagemDuelos'); audio.stopMusic(); const rn = `AhoraCaigo - Round${Math.min(8, rodadas + 1)}.mp3`; audio.playMusic(rn).then(() => c.hud.subs(rn, true));
   c.st.show('ContagemDuelos', rodadas === 0 ? '0' : String(rodadas), { z: 45, fade: 330 });
   await c.s.w(3500); c.st.hide('ContagemDuelos', 330); await c.s.w(330);
 }
-export async function banner(c: Ctx, name: string, ms = 2500) { audio.play('Moeda'); c.st.show('ContagemDuelos', name, { z: 45, fade: 330 }); await c.s.w(ms); c.st.hide('ContagemDuelos', 330); await c.s.w(330); }
+export async function banner(c: Ctx, name: string, ms = 2500) { audio.play('Moeda@ContagemDuelos'); c.st.show('ContagemDuelos', name, { z: 45, fade: 330 }); await c.s.w(ms); c.st.hide('ContagemDuelos', 330); await c.s.w(330); }
 
 function showDigits(st: Stage2D, placar: number, z: number) {
   const t = String(Math.floor(placar)); const L = t.length;
@@ -111,7 +122,7 @@ function showDigits(st: Stage2D, placar: number, z: number) {
 }
 /** Marcador (Gc + dígitos del Scratch) */
 export async function marcador(c: Ctx, placar: number, ms = 3000, big = false) {
-  audio.play('Moeda'); c.st.show('Gc', 1, { z: 50, fade: 330, size: 150, from: 0.5 });
+  audio.play('Moeda@Gc'); c.st.show('Gc', 1, { z: 50, fade: 330, size: 150, from: 0.5 });
   await c.s.w(300); showDigits(c.st, placar, 51);
   if (big) c.hud.score(`🏆 ${fmt(placar)} PUNTOS`, true);
   await c.s.w(ms); c.st.hide('Gc', 330); for (let i = 1; i <= 6; i++) c.st.hide('PlacarDig' + i, 330); if (big) c.hud.score(null);
@@ -128,40 +139,47 @@ export async function transicao(c: Ctx) {
   c.st.show('Painel', 'Transiçao2', { z: 47 }); await c.s.w(400); c.st.hide('Painel', 330); await c.s.w(330);
 }
 
-// ---------------- Frases del Presentador ----------------
-const H = {
-  sube: ['¡Concursante, sube a la trampilla central!', '¡Adelante! Ponte en el centro del plató, encima de la trampilla.'],
-  elige: ['¡Elige una huella! Detrás de cada huella hay un oponente.', 'Muy bien… ¿a quién retas ahora? ¡Elige huella!'],
-  elegido: (n: number) => rnd([`¡Has elegido al oponente número ${n}!`, `¡El ${n}! Vamos a ver qué sabe…`, `Oponente ${n}, ¡al duelo!`]),
-  ok: ['¡CORRECTO!', '¡Muy bien!', '¡Lo has clavado!'],
-  pasa: ['¡Pasa! Turno de tu oponente…', 'Usas un comodín: ¡pasa la pregunta!'],
-  cae: ['¡Y… AHORA CAE!', '¡Fuera! ¡Abajo!', '¡Hasta luego!'],
-  tiempo: ['¡Se acabó el tiempo…!', '¡Oh, no! ¡Tiempo!'],
-  moneda: ['¡Elige un lado de la moneda!', 'Vamos a por la moneda: izquierda o derecha.'],
-  decision: '¡Has tirado a 8 oponentes! ¿Te plantas con la mitad o te atreves con el Juego Final?',
-  final: '¡Juego Final! 10 preguntas en 2 minutos. Si lo consigues, ¡doblas tu marcador!',
-};
-
 // ---------------- El programa completo ----------------
 export class Programa {
   vidas = 2; placar = 0; acertos = 0; rodadas = 0; vidaExtra = 0; moedas: number[] = []; used = new Set<number>(); bank: Bank;
   timerStop = () => { }; noVidas = false;
-  constructor(public c: Ctx) { this.bank = new Bank(c.eng.theme.id); }
+  chistes: Chistes; jokeDone = false;
+  constructor(public c: Ctx) { this.bank = new Bank(c.eng.theme.id); this.chistes = new Chistes(c.eng.theme.id); }
+  /** Frase con voz; espera a que termine (o a que se toque el bocadillo) */
+  async talk(text: string, ms = 2500) { let done = false; this.c.hud.say(text, ms).then(() => { done = true; }); await this.c.s.until(() => done); }
+  /** Chiste del presentador (se puede saltar tocando el bocadillo) */
+  async joke(ctx: JokeCtx) {
+    if (!voice.jokes) return;
+    const t = this.chistes.next(ctx); if (!t) return;
+    const { eng } = this.c;
+    gesture(eng.host, 'habla', 3);
+    await this.talk(t, 2600);
+    audio.applause(1.4, 0.3); gesture(eng.host, 'aplaude', 1.2);
+    eng.opps.forEach(o => { if (o.root.visible && Math.random() < 0.5) gesture(o, 'aplaude', 1.2); });
+    await this.c.s.w(500);
+  }
 
   async run() {
     const { eng, hud, s } = this.c;
     eng.resetPositions(); eng.opps.forEach(o => o.root.visible = true);
     // ---- CABECERA ----
+    eng.lights?.event('intro');
     await cabecera(eng, hud, s, eng.theme.id === 'primetime');
     // ---- el Presentador da la bienvenida ----
+    const INTRO = 'AhoraCaigo - Intro.mp3'; const it = audio.musicTime(INTRO);
+    if (it >= 0 && it < 16.5) audio.stopMusic(0.4); // cabecera saltada: se corta la voz
     { const hp = eng.host.root.position; eng.cut(V(hp.x + 0.9, TOP + 1.7, hp.z + 3.2), V(hp.x, TOP + 1.3, hp.z)); eng.face(eng.host, V(hp.x + 1.2, 0, hp.z + 6)); }
-    gesture(eng.host, 'saluda', 2.2); hud.say(eng.theme.saludo, 3800);
+    gesture(eng.host, 'saluda', 2.2);
+    // si la voz original de la cabecera sigue sonando, el presentador la termina en plano
+    await s.until(() => { const t = audio.musicTime(INTRO); return t < 0 || t > 23.9; });
+    gesture(eng.host, 'habla', 2.5); await this.talk(eng.theme.saludo, 3000);
     audio.play('TemaCurto');
-    await s.w(3600);
+    await this.joke('intro');
+    await s.w(600);
     await this.subirAlCentro();
-    audio.playMusic('TrilhaCurta');
+    audio.playMusic('TrilhaCurta@Stage');
     cams.wide(eng); eng.opps.forEach((o, i) => setTimeout(() => gesture(o, 'saluda', 1.2), i * 150));
-    hud.say('¡Aquí están nuestros 10 oponentes! Tienes que tirar a 8 de ellos para llegar al final.', 3800);
+    hud.say(L.equipo, 3800);
     eng.glide(V(0, 5.2, 9.5), V(0, 1.2, -3), 3.6);
     await s.w(2000); audio.play('AcerteOuCaia SuspEdit', 0.8, 'susp');
     // (pruebas automáticas: empezar en un duelo concreto)
@@ -171,7 +189,7 @@ export class Programa {
       await contagem(this.c, this.rodadas); audio.stopTag('susp');
       showVidas(-1, false);
       this.acertos = 0; this.rodadas++;
-      cams.wide(eng, 1.0); gesture(eng.host, 'senala', 1.8); hud.say(rnd(H.elige), 2000, eng.host.head); await s.w(1900); hud.hideBubble();
+      cams.wide(eng, 1.0); gesture(eng.host, 'senala', 1.8); if (this.rodadas > 1) { hud.say(pick(L.elige), 2000, eng.host.head); await s.w(1900); hud.hideBubble(); }
       const opp = await eleccion(this.c, this.used); this.used.add(opp);
       const r = await this.duelo(opp);
       if (r === 'lose') return this.fin('perdido');
@@ -180,15 +198,16 @@ export class Programa {
       await s.w(1500);
       await telaPlacar(this.c, this.moedas, this.placar, eng.theme.id === 'primetime');
       if (this.rodadas === 8) break;
-      await s.w(1000);
+      await s.w(600);
+      if (!this.jokeDone) { cams.wide(eng, 1.0); await this.joke('entre'); }
     }
-    if (this.placar === 0) { audio.stopMusic(); hud.say('Has tirado a los 8… pero tu marcador está a cero. ¡Qué mala suerte!', 3500); await s.w(3600); return this.fin('perdido'); }
+    if (this.placar === 0) { audio.stopMusic(); await hud.say(L.cero, 3500); return this.fin('perdido'); }
     // ---- decisión ----
     const d = await this.decision();
     if (d === 'plantarse') {
       this.placar = Math.floor(this.placar / 2);
       audio.stopAll(); await transicao(this.c); audio.playMusic('Trilha');
-      cams.player(eng, 1.5); hud.say('¡Te plantas! Te llevas la mitad de tus puntos.', 3000);
+      cams.player(eng, 1.5); hud.say(L.plantas, 3000);
       await s.w(1500); await marcador(this.c, this.placar, 4000, true);
       return this.fin('plantado');
     }
@@ -199,7 +218,7 @@ export class Programa {
   async subirAlCentro() {
     const { eng, hud, s } = this.c;
     eng.player.root.position.set(0, 0, 9.5); eng.player.root.rotation.y = Math.PI; eng.walkMode(true);
-    hud.say(rnd(H.sube), 4000);
+    hud.say(pick(L.sube), 4000);
     hud.hint('🕹️ Camina hasta la trampilla central  ·  PC: WASD + ratón');
     let auto = false;
     hud.actions([{ label: 'Ir al centro ▶', fn: () => { auto = true; } }]);
@@ -221,34 +240,36 @@ export class Programa {
     const { eng, hud, st, panel, s } = this.c;
     const o = eng.opps[opp - 1];
     eng.studio.setHoleColor(opp, eng.theme.accent);
-    cams.opp(eng, opp); gesture(o, 'saluda', 1.4); hud.say(H.elegido(opp), 2500);
+    cams.opp(eng, opp); gesture(o, 'saluda', 1.4); hud.say(fill(pick(L.elegidoT), opp), 2500);
     eng.face(eng.player, o.root.position); eng.face(o, eng.player.root.position);
-    audio.playMusic('TrilhaCurta'); await s.w(1000);
-    audio.play('AhoraCaigo - ComeceDuelo.mp3');
-    st.show('MenuEscolha2', 1, { z: 35, fade: 170 }); cams.duel(eng, opp, 1.6);
+    audio.playMusic('TrilhaCurta@MenuEscolha2'); await s.w(1000);
+    audio.play('AhoraCaigo - ComeceDuelo.mp3'); hud.subs('AhoraCaigo - ComeceDuelo.mp3', false);
+    st.show('MenuEscolha2', 1, { z: 35, fade: 170 }); cams.duel(eng, opp, 1.6); eng.lights?.event('duelo');
     await s.w(2000); audio.playMusic('SuspenseDuelo', true); await s.w(1000);
     st.hide('MenuEscolha2', 330); await s.w(1000);
     while (true) {
       const r = await this.pregunta(this.rodadas, false);
       if (r === 'ok') {
-        this.acertos++;
+        this.acertos++; eng.lights?.event('acierto');
         await s.w(1000);
         // el oponente cae
         panel.hideAll(500); showVidas(-1, false); await s.w(500);
-        audio.playMusic('TrilhaCurta'); gesture(eng.host, 'senala', 2); hud.say(rnd(H.ok), 2000);
+        audio.playMusic('TrilhaCurta@Gcpgt1'); gesture(eng.host, 'senala', 2); hud.say(pick(L.ok), 2000);
         cams.opp(eng, opp, 1.2);
         await s.w(3000); audio.stopMusic(); audio.play('AcerteOuCaia SuspEdit', 1, 'susp');
         await s.w(3000);
         await this.caida(opp, o);
-        audio.stopTag('susp'); await s.w(500); audio.playMusic('TrilhaCurta');
-        gesture(eng.player, 'arriba', 2); cams.player(eng, 1.2); await s.w(2500);
+        audio.stopTag('susp'); await s.w(500); audio.playMusic('TrilhaCurta@Stage');
+        gesture(eng.player, 'arriba', 2); cams.player(eng, 1.2);
         if (eng.theme.id === 'primetime') confettiBurst(eng.studio, V(0, TOP + 2, 0));
-        await s.w(2000);
+        await s.w(1500);
+        if (Math.random() < 0.5) { this.jokeDone = true; await this.joke('caida'); } else this.jokeDone = false;
+        await s.w(1200);
         return 'win';
       }
       if (r === 'pasa') {
-        audio.play('SomPalavra'); this.vidas--; panel.hideAll(300);
-        st.show('Painel', 1, { z: 46, fade: 330, from: 1.5 }); hud.say(rnd(H.pasa), 2200);
+        audio.play('SomPalavra@Teclado27'); this.vidas--; panel.hideAll(300);
+        st.show('Painel', 1, { z: 46, fade: 330, from: 1.5 }); hud.say(pick(L.pasa), 2200);
         showVidas(this.vidas, !!this.vidaExtra);
         gesture(o, 'habla', 2); await s.w(2000); st.hide('Painel', 330); await s.w(400);
         continue;
@@ -261,7 +282,7 @@ export class Programa {
   /** gcpergunta + pergunta + teclado + reloj. Devuelve ok | pasa | tiempo */
   async pregunta(ronda: number, final: boolean, q?: Q, onPasa?: () => void, clock?: { left: number }): Promise<'ok' | 'pasa' | 'tiempo'> {
     const { panel, s, hud } = this.c;
-    panel.stopInput(); audio.play('SomPalavra');
+    panel.stopInput(); audio.play('SomPalavra@Gcpgt1');
     panel.showBg(final);
     if (!clock) { panel.showClock(true); panel.setTime(30); }
     await s.w(1300);
@@ -300,10 +321,10 @@ export class Programa {
     // la trampilla parpadea en rojo (como Quedatela2) y se abre
     cams.hole(eng, n);
     for (let k = 0; k < 3; k++) { eng.studio.setHoleColor(n, 0xff2020); await s.w(330); eng.studio.setHoleColor(n, 0xffffff); await s.w(330); }
-    setTimeout(() => audio.play('AhoraCaigo - Queda.mp3'), 0);
+    audio.play('AhoraCaigo - Queda.mp3'); hud.subs('AhoraCaigo - Queda.mp3', false);
     await s.w(500);
-    hud.say(rnd(H.cae), 1800, eng.host.head);
-    audio.play('DropM.mp3'); eng.shake = 0.5;
+    
+    audio.play('DropM.mp3'); eng.shake = 0.5; eng.lights?.event('caida', h.pos.clone());
     await eng.fall(p, n);
     eng.studio.setHoleColor(n, 0x222222); h.target = 0;
   }
@@ -311,7 +332,7 @@ export class Programa {
   async perder(): Promise<'lose'> {
     const { eng, hud, panel, s } = this.c;
     audio.stopMusic(); audio.play('AcerteOuCaia Susp.mp3', 1, 'susp');
-    hud.say(rnd(H.tiempo), 3000); gesture(eng.host, 'lamenta', 2.5);
+    hud.say(pick(L.tiempo), 3000); gesture(eng.host, 'lamenta', 2.5); eng.lights?.event('fallo');
     await s.w(4000); panel.hideAll(500); showVidas(-1, false); await s.w(1000);
     this.placar = 0;
     audio.stopTag('susp');
@@ -323,8 +344,8 @@ export class Programa {
 
   async decision(): Promise<'plantarse' | 'final'> {
     const { st, s, hud, eng } = this.c;
-    audio.stopMusic(); audio.playMusic('AhoraCaigo - Decisão.mp3');
-    cams.player(eng, 1.2); hud.say(H.decision, 5000);
+    audio.stopMusic(); await audio.playMusic('AhoraCaigo - Decisão.mp3');
+    cams.player(eng, 1.2); hud.subs('AhoraCaigo - Decisão.mp3', true);
     st.show('Painel', 'DesafioFinal', { z: 46, fade: 330 });
     await s.w(500);
     let ch: 'plantarse' | 'final' | null = null;
@@ -340,10 +361,15 @@ export class Programa {
 
   async juegoFinal(): Promise<boolean> {
     const { eng, hud, st, panel, s } = this.c;
-    this.acertos = 0; audio.stopAll(); await transicao(this.c); audio.playMusic('TrilhaCurta');
+    this.acertos = 0; audio.stopAll();
+    // como en el Scratch: viñeta de transición, música TemaCurto y el plató pasa a DORADO (decdesafiofinal)
+    { const t = transicao(this.c); await s.w(420); eng.setGoldSet(true); eng.lights?.event('final'); await t; }
+    audio.playMusic('TemaCurto');
     eng.opps.forEach(o => o.root.visible && gesture(o, 'arriba', 1.5));
-    cams.player(eng, 1.5); hud.say(H.final, 4000); await s.w(2000);
+    eng.startOrbit(V(0, 0, 0), 10.5, 4.8, 0, 0.06, 1); await s.w(2000);
+    // rótulo JUEGO FINAL (ContagemDuelos 'GcDueloFinal' con el sonido Moeda)
     await banner(this.c, 'GcDueloFinal', 2500);
+    cams.player(eng, 1.5); await this.joke('final'); hud.say(L.final, 4000); await s.w(2500);
     const list: Q[] = []; for (let i = 0; i < 10; i++) list.push(this.bank.next('normal'));
     await s.w(1500); audio.playMusic('SuspenseDuelo', true);
     this.vidas = 0; showVidas(-1, false); await s.w(1500);
@@ -370,9 +396,9 @@ export class Programa {
     panel.hideAll(500); st.hide('PlacarFinal', 300); await s.w(1000);
     this.placar *= 2;
     audio.stopAll(); audio.playMusic('AhoraCaigo - Fim.mp3');
-    confettiBurst(eng.studio, V(0, TOP + 1, 0)); confettiBurst(eng.studio, V(-3, 2, -3)); confettiBurst(eng.studio, V(3, 2, -3));
+    eng.lights?.event('ganador'); confettiBurst(eng.studio, V(0, TOP + 1, 0)); confettiBurst(eng.studio, V(-3, 2, -3)); confettiBurst(eng.studio, V(3, 2, -3));
     gesture(eng.player, 'arriba', 3); gesture(eng.host, 'aplaude', 3); cams.player(eng, 1.2);
-    hud.say('¡¡HAS GANADO!! ¡Doblas tu marcador!', 4000);
+    hud.say(L.ganado, 4000);
     await s.w(1500); await marcador(this.c, this.placar, 6000, true);
     return true;
   }
@@ -381,6 +407,7 @@ export class Programa {
     const { eng, hud, s, panel } = this.c;
     panel.hideAll(); showVidas(-1, false);
     const line = res === 'ganado' ? `¡Has ganado ${fmt(this.placar)} puntos!` : res === 'plantado' ? `Te has plantado con ${fmt(this.placar)} puntos` : 'Esta vez has caído… ¡a la próxima!';
+    eng.setGoldSet(false); eng.lights?.event('outro');
     await despedida(eng, hud, s, line);
     audio.stopAll();
     return { res, placar: this.placar, rodadas: this.rodadas, line };

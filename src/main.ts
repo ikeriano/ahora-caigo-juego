@@ -13,6 +13,9 @@ import { logoCanvas } from './logo';
 import { TOP } from './set3d';
 import { loadOpts, saveOpts, Opts } from './options';
 import { CREDITOS } from './credits';
+import { L, allLines } from './lines';
+import { voice, hashText } from './voice';
+import { setupLightsUI } from './lightsui';
 import { isMobile } from './engine';
 import { gesture } from './people';
 
@@ -25,14 +28,17 @@ let originales = localStorage.getItem('ac_orig') === '1';
 let opts: Opts;
 
 async function boot() {
-  await loadManifest(); initAudio();
+  await loadManifest(); initAudio(); await voice.load();
   eng = new Engine($('c3d') as HTMLCanvasElement, imgUrl(costume('Menu', 1).f));
   eng.setTheme(themeById(themeId));
   opts = loadOpts(isMobile ? 'media' : 'alta'); eng.quality = 'x' as any; applyOpts();
   setupControls(eng, $('touch'));
   hud = new Hud(eng); st = new Stage2D($('stage2d'), $('stageBox')); panel = new Panel();
-  Object.assign(window as any, { __eng: eng, __hud: hud, __st: st, __panel: panel, THREE, __startMode: startMode, __menu: showMenu });
+  Object.assign(window as any, { __eng: eng, __hud: hud, __st: st, __panel: panel, THREE, __startMode: startMode, __menu: showMenu, __allLines: allLines, __voice: voice, __hashText: hashText });
   $('btnMenu').onclick = (e) => { e.stopPropagation(); if (session) { if (confirm('¿Volver al menú? Se perderá la partida.')) stopMode(); } else showMenu('main'); };
+  const lui = setupLightsUI(eng);
+  $('btnLuces').onclick = (e) => { e.stopPropagation(); lui.toggle(); };
+  (window as any).__lui = lui;
   $('btnCam').onclick = (e) => { e.stopPropagation(); eng.firstPerson = !eng.firstPerson; hud.toast(eng.firstPerson ? 'Primera persona' : 'Tercera persona', 1000); };
   $('classicBack').onclick = () => { $('classicWrap').classList.add('hidden'); ($('classic') as HTMLIFrameElement).src = 'about:blank'; menuMusic = false; showMenu('play'); };
   // precarga de imágenes que se usan durante el juego
@@ -139,6 +145,12 @@ function showMenu(sc: Screen = 'main') {
       const l = document.createElement('label'); l.textContent = label; r.append(l, b, sl); return r;
     };
     col.append(tog('🎵 Música', 'music', 'musicVol'), tog('🔊 Efectos', 'sfx', 'sfxVol'));
+    const onoff = (label: string, k: 'voz' | 'chistes') => {
+      const r = document.createElement('div'); r.className = 'orow'; const l = document.createElement('label'); l.textContent = label;
+      const b = document.createElement('button'); const upd = () => { b.className = 'tbtn' + (opts[k] ? ' sel' : ''); b.textContent = opts[k] ? 'Sí' : 'No'; };
+      b.onclick = (e) => { e.stopPropagation(); opts[k] = !opts[k]; upd(); applyOpts(); audio.play('Tecla'); }; upd(); r.append(l, b); return r;
+    };
+    col.append(onoff('🎤 Voz del presentador', 'voz'), onoff('😄 Chistes del presentador', 'chistes'));
     const q = document.createElement('div'); q.className = 'orow'; const ql = document.createElement('label'); ql.textContent = '✨ Calidad gráfica'; q.appendChild(ql);
     for (const v of ['baja', 'media', 'alta'] as const) { const b = document.createElement('button'); b.className = 'tbtn' + (opts.quality === v ? ' sel' : ''); b.textContent = v[0].toUpperCase() + v.slice(1); b.onclick = (e) => { e.stopPropagation(); opts.quality = v; applyOpts(); showMenu('options'); }; q.appendChild(b); }
     const f = document.createElement('div'); f.className = 'orow'; const fl = document.createElement('label'); fl.textContent = '⛶ Pantalla completa'; f.appendChild(fl);
@@ -187,7 +199,7 @@ async function toggleFullscreen() {
     else { await document.documentElement.requestFullscreen({ navigationUI: 'hide' } as any); try { await (screen as any).orientation?.lock?.('landscape'); } catch { } }
   } catch { hud.toast('Tu navegador no permite pantalla completa aquí', 2500); }
 }
-function applyOpts() { audio.setLevels(opts); if (eng.quality !== opts.quality) eng.setQuality(opts.quality); saveOpts(opts); }
+function applyOpts() { audio.setLevels(opts); voice.enabled = opts.voz; voice.jokes = opts.chistes; if (eng.quality !== opts.quality) eng.setQuality(opts.quality); saveOpts(opts); }
 /** Botón «atrás» (Android): devuelve false si ya estamos en la portada */
 function back(): boolean {
   if (!$('classicWrap').classList.contains('hidden')) { ($('classicBack') as HTMLButtonElement).click(); return true; }
@@ -197,11 +209,12 @@ function back(): boolean {
   const to = up[screen]; if (!to) return false; showMenu(to); return true;
 }
 (window as any).__back = back;
+(window as any).__sessionAlive = () => !!session && session.alive;
 addEventListener('keydown', (e) => { if (e.key === 'Escape') back(); });
 
 function resetScene() {
   audio.stopAll(); st.clear(); panel.hideAll(); hud.reset(); showVidas(-1, false);
-  eng.override = null; eng.walkMode(false); eng.firstPerson = false;
+  eng.override = null; eng.walkMode(false); eng.firstPerson = false; eng.setGoldSet(false);
   document.getElementById('finCard')?.remove(); document.getElementById('introFlash')?.remove();
   eng.resetPositions();
   eng.studio.holes.forEach((_, i) => eng.studio.setHoleColor(i, i === 0 ? 0xffffff : 0xffffff));
@@ -234,14 +247,14 @@ async function startMode(mode: string, sub?: any) {
       eng.player.root.position.set(0, 0, 10.5); eng.player.root.rotation.y = Math.PI; eng.walkMode(true);
       hud.hint('🕹️ Joystick / WASD para andar · arrastra para mirar · 👁 cambia de cámara');
       setTimeout(() => hud.hint(null), 6000);
-      hud.say('¡Bienvenido al plató! Date una vuelta. Puedes subir a la mesa central y a los atriles.', 4500);
+      hud.say(L.explBienvenida, 4500);
       gesture(eng.host, 'saluda', 2);
       // los oponentes saludan cuando te acercas
       const near = new Set<number>();
       while (true) {
         await s.w(300);
         eng.opps.forEach((o, i) => { const d = o.root.position.distanceTo(eng.player.root.position); if (d < 2 && !near.has(i)) { near.add(i); eng.face(o, eng.player.root.position); gesture(o, 'saluda', 1.4); } if (d > 3) near.delete(i); });
-        if (eng.host.root.position.distanceTo(eng.player.root.position) < 1.8 && !near.has(99)) { near.add(99); eng.face(eng.host, eng.player.root.position); gesture(eng.host, 'habla', 2); hud.say('¿Te atreves con un programa completo? ¡Pulsa ☰ y elige «Programa completo»!', 3500); }
+        if (eng.host.root.position.distanceTo(eng.player.root.position) < 1.8 && !near.has(99)) { near.add(99); eng.face(eng.host, eng.player.root.position); gesture(eng.host, 'habla', 2); hud.say(L.explReto, 3500); }
         if (eng.host.root.position.distanceTo(eng.player.root.position) > 3) near.delete(99);
       }
     }

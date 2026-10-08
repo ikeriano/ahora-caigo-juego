@@ -8,6 +8,7 @@ import { CREDITOS } from './credits';
 import { TOP } from './set3d';
 import { gesture } from './people';
 import { confettiBurst } from './decor';
+import { despedidaTexto } from './lines';
 
 /** Ejecuta una escena que se puede saltar con el botón "Saltar" */
 export async function skippable(main: Session, hud: Hud, fn: (s: Session) => Promise<void>) {
@@ -20,7 +21,7 @@ export async function skippable(main: Session, hud: Hud, fn: (s: Session) => Pro
 
 // ------------------------------------------------------------------ CABECERA
 export async function cabecera(eng: Engine, hud: Hud, main: Session, extraDramatic = false) {
-  audio.playMusic('AhoraCaigo - Intro.mp3');
+  audio.playMusic('AhoraCaigo - Intro.mp3').then(() => hud.subs('AhoraCaigo - Intro.mp3', true));
   try {
     await skippable(main, hud, async (s) => {
       await logoReveal(eng, s, extraDramatic);
@@ -140,11 +141,11 @@ async function logoReveal(eng: Engine, s: Session, dramatic: boolean) {
 // ------------------------------------------------------------------ FINAL
 export async function despedida(eng: Engine, hud: Hud, main: Session, resultLine: string) {
   const th = eng.theme;
-  const texto = th.despedida || `Y hasta aquí el programa de hoy${th.id === 'normal' ? '' : ', el especial ' + th.name}. ¡Muchas gracias por jugar a ¡Ahora Caigo! Ha sido un placer, ¡sois los mejores! ¡Hasta la próxima!`;
+  const texto = despedidaTexto(th);
   document.body.classList.add('outro');
   try { await skippable(main, hud, async (s) => {
     hud.hideBubble();
-    audio.playMusic('AhoraCaigo - Fim.mp3'); audio.applause(6);
+    audio.playMusic('AhoraCaigo - Fim.mp3').then(() => hud.subs('AhoraCaigo - Fim.mp3', true)); audio.applause(6);
     // plano general de los atriles
     eng.opps.forEach(o => { if (o.root.visible) gesture(o, 'arriba', 3); });
     eng.cut(new THREE.Vector3(-9, 4.5, 6), new THREE.Vector3(3, 1.6, -2)); eng.glide(new THREE.Vector3(9, 4.5, 6), new THREE.Vector3(-3, 1.6, -2), 3.5);
@@ -155,9 +156,13 @@ export async function despedida(eng: Engine, hud: Hud, main: Session, resultLine
     await s.w(3200);
     eng.cut(new THREE.Vector3(0.6, TOP + 1.7, 3.6), new THREE.Vector3(0, TOP + 1.3, 0));
     hud.credits([...CREDITOS.final.map(([a, b]) => [a, b] as [string, string[]]), resultLine], 16);
-    gesture(eng.host, 'aplaude', 2.4); hud.say(texto, 9000);
-    await s.w(2400); gesture(eng.host, 'gracias', 1.8); await s.w(1800);
-    gesture(eng.host, 'beso', 1.6); await s.w(1600); gesture(eng.host, 'saluda', 2.2); await s.w(2400);
+    gesture(eng.host, 'aplaude', 2.4);
+    // termina la voz original («Ha sido un placer jugar contigo…») y luego la despedida
+    await s.until(() => { const t = audio.musicTime('AhoraCaigo - Fim.mp3'); return t < 0 || t > 6.9; });
+    let said = false; hud.say(texto, 6500).then(() => { said = true; });
+    gesture(eng.host, 'gracias', 1.8); await s.w(1800);
+    gesture(eng.host, 'beso', 1.6); await s.w(1600); gesture(eng.host, 'saluda', 2.2);
+    await s.until(() => said);
     hud.hideBubble();
     // plano cenital girando y caída del presentador (los créditos se van antes del logo)
     document.getElementById('credits')!.classList.add('fadeout');

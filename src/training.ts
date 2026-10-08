@@ -5,6 +5,7 @@ import { audio } from './assets';
 import { TOP } from './set3d';
 import { gesture } from './people';
 import { fmt } from './hud';
+import { L, fill } from './lines';
 
 export type TrainKind = 'pruebas' | 'sintiempo' | 'gallina' | 'final' | 'huellas';
 
@@ -24,7 +25,7 @@ export async function entrenamiento(c: Ctx, kind: TrainKind, originales: boolean
   audio.playMusic('SuspenseDuelo', true, 0.6);
   upd();
   if (kind === 'final') {
-    hud.say('Entrenamiento del Juego Final: 10 preguntas en 2 minutos. ¡Sin caídas!', 3500); await s.w(3000);
+    hud.say(L.trFinal, 3500); await s.w(3000);
     const list: Q[] = []; for (let i = 0; i < 10; i++) list.push(P.bank.next('normal'));
     const clock = { left: 120 }; const t0 = performance.now() + 2300;
     panel.showBg(true); panel.showClock(true); panel.setTime(120);
@@ -39,16 +40,16 @@ export async function entrenamiento(c: Ctx, kind: TrainKind, originales: boolean
       }
     } finally { clearInterval(iv); audio.stopTag('clock'); }
     c.st.hide('PlacarFinal'); panel.hideAll(300);
-    hud.say(ac === 10 ? '¡Perfecto! Has completado el Juego Final.' : `Tiempo: has acertado ${ac} de 10. ¡Sigue practicando!`, 5000);
+    hud.say(ac === 10 ? L.trFinalOk : fill(L.trFinalT, ac), 5000);
     gesture(eng.host, ac === 10 ? 'aplaude' : 'habla', 2.5);
     await s.w(5000); return;
   }
-  hud.say(kind === 'gallina' ? '¡Palabra gallina! Completa la letra de la canción.' : 'Entrenamiento de pruebas: escribe las letras que faltan. ¡Sin caídas!', 3500);
+  hud.say(kind === 'gallina' ? L.trGallina : L.trPruebas, 3500);
   while (true) {
     let r: 'ok' | 'pasa' | 'tiempo';
     if (kind === 'sintiempo') {
       // misma pregunta sin reloj
-      panel.stopInput(); audio.play('SomPalavra'); panel.showBg(false); panel.showClock(false);
+      panel.stopInput(); audio.play('SomPalavra@Gcpgt1'); panel.showBg(false); panel.showClock(false);
       await s.w(800);
       const q = P.bank.next('normal'); panel.setQuestion(q);
       let res: any = null; panel.showPasa(true, () => { res = res || 'pasa'; });
@@ -70,14 +71,14 @@ async function huellas(c: Ctx) {
   const { eng, hud, s } = c;
   const state = { placar: 0, vidas: 2, vidaExtra: 0, moedas: [] as number[] };
   const used = new Set<number>();
-  hud.say('Practica la elección de huellas y la moneda. ¡Nadie cae!', 3000);
+  hud.say(L.trHuellas, 3000);
   for (let r = 1; r <= 8; r++) {
     hud.score(`Ronda ${r}/8 · ${fmt(state.placar)} puntos`);
     const n = await eleccion(c, used); used.add(n);
-    cams.opp(eng, n, 1.0); gesture(eng.opps[n - 1], 'saluda', 1.5); hud.say(`Has elegido la huella ${n}.`, 1800); await s.w(2000);
+    cams.opp(eng, n, 1.0); gesture(eng.opps[n - 1], 'saluda', 1.5); hud.say(fill(L.trHuellaT, n), 1800); await s.w(2000);
     await moneda(c, n, state, true);
     await marcador(c, state.placar, 2200);
   }
   hud.score(`Total: ${fmt(state.placar)} puntos`, true);
-  hud.say(`¡Has conseguido ${fmt(state.placar)} puntos en el entrenamiento!`, 5000); await s.w(5000);
+  hud.say(L.trHuellasFin, 5000); await s.w(5000);
 }

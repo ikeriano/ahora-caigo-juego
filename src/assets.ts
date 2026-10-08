@@ -16,7 +16,7 @@ export function preloadImages(urls: string[]) { return Promise.all(urls.map(u =>
 
 // ---------------- Audio ----------------
 class Audio {
-  ctx: AudioContext; master: GainNode; music: GainNode; sfx: GainNode;
+  ctx: AudioContext; master: GainNode; music: GainNode; sfx: GainNode; voice: GainNode;
   buffers = new Map<string, Promise<AudioBuffer | null>>();
   musicSrc: { src: AudioBufferSourceNode; gain: GainNode; name: string } | null = null;
   playing = new Set<AudioBufferSourceNode>();
@@ -25,6 +25,7 @@ class Audio {
     this.ctx = new AC(); this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination);
     this.music = this.ctx.createGain(); this.music.gain.value = 0.75; this.music.connect(this.master);
     this.sfx = this.ctx.createGain(); this.sfx.connect(this.master);
+    this.voice = this.ctx.createGain(); this.voice.connect(this.master);
     const unlock = () => { if (this.ctx.state !== 'running') this.ctx.resume(); };
     ['pointerdown', 'touchstart', 'keydown'].forEach(t => addEventListener(t, unlock, { capture: true, passive: true } as any));
     document.addEventListener('visibilitychange', () => { document.hidden ? this.ctx.suspend() : this.ctx.resume(); });
@@ -32,8 +33,28 @@ class Audio {
   /** Opciones: música/efectos activados + volumen (0..1) */
   setLevels(o: { music: boolean; musicVol: number; sfx: boolean; sfxVol: number }) {
     this.music.gain.value = o.music ? 0.75 * o.musicVol : 0; this.sfx.gain.value = o.sfx ? o.sfxVol : 0;
+    this.voice.gain.value = o.sfx ? Math.max(0.35, o.sfxVol) * 1.15 : 0;
   }
-  file(name: string) { const f = M.sounds[name]; if (!f) console.warn('sonido?', name); return f; }
+  /** 'nombre' o 'nombre@Objeto' (el .sb3 tiene sonidos distintos con el mismo nombre en cada objeto) */
+  file(name: string) {
+    const [n, sp] = name.split('@');
+    const f = (sp && M.sprites[sp]?.s?.[n]) || M.sounds[n]; if (!f) console.warn('sonido?', name); return f;
+  }
+  loadUrl(url: string) {
+    if (!this.buffers.has(url)) this.buffers.set(url, fetch(url).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).then(b => new Promise<AudioBuffer>((res, rej) => this.ctx.decodeAudioData(b, res, rej))).catch(() => null));
+    return this.buffers.get(url)!;
+  }
+  /** Reproduce un fichero (voz del presentador); devuelve la duración o -1 si no existe */
+  async playUrl(url: string, vol = 1, tag?: string): Promise<{ dur: number; done: Promise<void> }> {
+    const b = await this.loadUrl(url); if (!b) return { dur: -1, done: Promise.resolve() };
+    const s = this.ctx.createBufferSource(); s.buffer = b; const g = this.ctx.createGain(); g.gain.value = vol;
+    s.connect(g); g.connect(this.voice); s.start(); this.playing.add(s);
+    if (tag) { if (!this.tags.has(tag)) this.tags.set(tag, new Set()); this.tags.get(tag)!.add(s); }
+    return { dur: b.duration, done: new Promise(r => { s.onended = () => { this.playing.delete(s); r(); }; }) };
+  }
+  /** segundos desde que empezó la música actual (para sincronizar subtítulos de las voces del .sb3) */
+  musicTime(name: string) { return this.musicSrc && this.musicSrc.name === name ? this.ctx.currentTime - this.musicT0 : -1; }
+  musicT0 = 0;
   load(name: string) {
     const f = this.file(name); if (!f) return Promise.resolve(null);
     if (!this.buffers.has(f)) this.buffers.set(f, fetch(`${BASE}sb3/snd/${f}.mp3`).then(r => r.arrayBuffer()).then(b => new Promise<AudioBuffer>((res, rej) => this.ctx.decodeAudioData(b, res, rej))).catch(() => null));
@@ -55,7 +76,7 @@ class Audio {
     this.stopMusic(0.25);
     const b = await this.load(name); if (!b) return;
     const s = this.ctx.createBufferSource(); s.buffer = b; s.loop = loop; const g = this.ctx.createGain(); g.gain.value = vol;
-    s.connect(g); g.connect(this.music); s.start(); this.musicSrc = { src: s, gain: g, name };
+    s.connect(g); g.connect(this.music); s.start(); this.musicSrc = { src: s, gain: g, name }; this.musicT0 = this.ctx.currentTime;
   }
   stopMusic(fade = 0.2) {
     const m = this.musicSrc; if (!m) return; this.musicSrc = null;
@@ -63,11 +84,11 @@ class Audio {
   }
   stopAll() { this.stopMusic(0.1); for (const s of this.playing) { try { s.stop(); } catch { } } this.playing.clear(); }
   /** Aplausos sintetizados (ruido filtrado a ráfagas): no hay aplausos en el sb3 */
-  applause(sec = 5) {
+  applause(sec = 5, vol = 0.9) {
     const ctx = this.ctx, len = ctx.sampleRate * sec, b = ctx.createBuffer(2, len, ctx.sampleRate);
     for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); for (let i = 0; i < len; i++) { const clap = Math.random() < 0.0009 ? 1 : 0; d[i] = (Math.random() * 2 - 1) * (0.25 + 0.75 * clap) * Math.min(1, i / 8000, (len - i) / 30000); } }
     const s = ctx.createBufferSource(); s.buffer = b; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 0.6;
-    const g = ctx.createGain(); g.gain.value = 0.9; s.connect(f); f.connect(g); g.connect(this.sfx); s.start(); this.playing.add(s);
+    const g = ctx.createGain(); g.gain.value = vol; s.connect(f); f.connect(g); g.connect(this.sfx); s.start(); this.playing.add(s);
   }
 }
 export let audio: Audio;

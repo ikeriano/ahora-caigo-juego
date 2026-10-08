@@ -207,7 +207,7 @@ export class Studio {
     for (let k = 0; k < 24; k++) {
       const a = k / 24 * Math.PI * 2;
       const lp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 5), lampM); lp.position.set(Math.cos(a) * 10.5, 8.35, Math.sin(a) * 10.5); R.add(lp);
-      if (k % 3 === 0) {
+      if (false) { // (sustituidos por los focos móviles de lights.ts)
         const len = 10;
         const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 1.3, len, 12, 1, true), additive(k % 2 ? th.accent : 0xbfdcff, mobile ? 0.07 : 0.09, beamTex));
         beam.geometry.translate(0, -len / 2, 0);

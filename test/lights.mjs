@@ -1,0 +1,31 @@
+// Previews de las luces: panel abierto (15) y show automático (16)
+import puppeteer from 'puppeteer-core'
+const [,, base='http://127.0.0.1:4180/', W='1280', H='720', prefix='previews/'] = process.argv
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox','--autoplay-policy=no-user-gesture-required','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'] })
+const p = await b.newPage()
+await p.setViewport({ width: +W, height: +H, deviceScaleFactor: 1 })
+p.on('pageerror', e => console.log('PAGEERROR', e.message))
+await p.goto(base + '?nosw&screen=play', { waitUntil: 'load' })
+await p.waitForFunction(() => window.__eng && document.querySelector('.mbtn.gold'), { timeout: 30000 })
+await p.evaluate(() => { void window.__startMode('explorar') })
+await sleep(2500)
+await p.evaluate(() => { const e = window.__eng; e.walkMode && e.walkMode(false); e.startOrbit(new window.THREE.Vector3(0, 1.5, 0), 11.5, 4.2, 0.4, 0.02, 1); document.getElementById('bubble')?.classList.add('hidden'); window.__eng.lights.event('final') })
+await sleep(3000); await p.screenshot({ path: prefix + '16-luces-show.png' }); console.log('16 ok')
+await p.click('#btnLuces'); await sleep(500)
+// abrir también Washes y tocar algunos botones para mostrar estados activos
+await p.evaluate(() => { [...document.querySelectorAll('#lightsUI .ltabs button')].find(b => b.textContent === 'Washes').click() })
+await sleep(300)
+await p.evaluate(() => {
+  const P = document.querySelector('#lightsUI .lpanel[data-g=heads]')
+  const click = a => P.querySelector(`[data-act="${a}"]`)?.click()
+  click('col:16711680'); click('cmode:GRADIENT'); click('move:CIRCLE'); click('msp:FAST'); click('beam:GOBO')
+})
+await sleep(2500)
+const st = await p.evaluate(() => ({ auto: window.__eng.lights.auto, heads: window.__eng.lights.groups.heads.A.move, tab: document.querySelector('#lightsUI .ltabs .auto').className }))
+console.log('estado', JSON.stringify(st))
+await p.screenshot({ path: prefix + '15-luces-panel.png' }); console.log('15 ok')
+// móvil
+await p.setViewport({ width: 844, height: 390, deviceScaleFactor: 1 }); await sleep(1500)
+await p.screenshot({ path: prefix + '15b-luces-panel-movil.png' }); console.log('15b ok')
+await b.close()

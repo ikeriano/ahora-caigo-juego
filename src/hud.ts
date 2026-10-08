@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import type { Engine } from './engine';
+import { voice, CLIPS } from './voice';
+import { audio } from './assets';
 
 const $ = (id: string) => document.getElementById(id)!;
 export const ABORT = new Error('abort');
@@ -20,12 +22,30 @@ export class Hud {
   toast(text: string, ms = 2200) { const t = $('toast'); t.innerHTML = text; t.classList.remove('hidden'); clearTimeout((t as any)._h); if (ms) (t as any)._h = setTimeout(() => t.classList.add('hidden'), ms); }
   hideToast() { $('toast').classList.add('hidden'); }
   hint(text: string | null) { const h = $('hint'); if (!text) h.classList.add('hidden'); else { h.innerHTML = text; h.classList.remove('hidden'); } }
-  /** Bocadillo del Presentador sobre su cabeza */
-  say(text: string, ms = 3200, who: THREE.Object3D | null = this.eng.host?.head || null, name = 'El Presentador') {
+  /** Bocadillo del Presentador sobre su cabeza (con voz). Se cierra tocándolo. Devuelve una promesa al cerrarse */
+  private sayResolve: (() => void) | null = null; private subsToken = 0;
+  say(text: string, ms = 3200, who: THREE.Object3D | null = this.eng.host?.head || null, name = 'El Presentador', o: { voice?: boolean } = {}): Promise<void> {
+    if (o.voice !== false) this.subsToken++;
+    const v = o.voice === false ? { ms: 0 } : voice.speak(text);
+    ms = Math.max(ms, v.ms + 450);
+    this.sayResolve?.(); this.sayResolve = null;
     const b = $('bubble'); b.querySelector('span')!.textContent = text; (b.querySelector('b') as HTMLElement).textContent = name;
+    if (!(b as any)._tap) { (b as any)._tap = true; b.addEventListener('pointerdown', (e) => { e.stopPropagation(); voice.stop(); this.hideBubble(); }); }
     b.classList.remove('hidden'); this.bubbleTarget = who; this.bubbleUntil = performance.now() + ms; this.placeBubble();
+    return new Promise(r => { this.sayResolve = r; });
   }
-  hideBubble() { $('bubble').classList.add('hidden'); this.bubbleTarget = null; }
+  /** Subtítulos de una voz original del .sb3 que ya está sonando */
+  async subs(clip: string, music: boolean, who: THREE.Object3D | null = this.eng.host?.head || null) {
+    const cues = CLIPS[clip]; if (!cues) return;
+    const tok = ++this.subsToken; const t0 = performance.now();
+    const now = () => music ? audio.musicTime(clip) : (performance.now() - t0) / 1000;
+    for (const [a, b, text] of cues) {
+      while (true) { const t = now(); if (tok !== this.subsToken || (music && t < 0)) return; if (t >= a) break; await new Promise(r => setTimeout(r, 60)); }
+      if (now() > b) continue;
+      this.say(text, (b - now()) * 1000 + 250, who, 'El Presentador', { voice: false });
+    }
+  }
+  hideBubble() { $('bubble').classList.add('hidden'); this.bubbleTarget = null; const r = this.sayResolve; this.sayResolve = null; r?.(); }
   placeBubble() {
     const b = $('bubble'); if (b.classList.contains('hidden')) return;
     if (performance.now() > this.bubbleUntil) { this.hideBubble(); return; }
@@ -64,6 +84,6 @@ export class Hud {
     e.className = 'score' + (big ? ' bigprize' : ''); e.innerHTML = html;
   }
   skip(fn: (() => void) | null) { const b = $('btnSkip'); if (!fn) b.classList.add('hidden'); else { b.classList.remove('hidden'); b.onclick = (e) => { e.stopPropagation(); fn(); }; } }
-  reset() { this.hideBubble(); this.hideToast(); this.hint(null); this.hashtag(null); this.clearLowerThirds(); this.hideCredits(); this.actions([]); this.score(null); this.skip(null); $('vidas').innerHTML = ''; }
+  reset() { voice.stop(); this.subsToken++; this.hideBubble(); this.hideToast(); this.hint(null); this.hashtag(null); this.clearLowerThirds(); this.hideCredits(); this.actions([]); this.score(null); this.skip(null); $('vidas').innerHTML = ''; }
 }
 export const fmt = (n: number) => Math.floor(n).toLocaleString('es-ES');
