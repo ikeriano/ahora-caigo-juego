@@ -257,7 +257,7 @@ export class Programa {
     const o = eng.opps[opp - 1];
     eng.studio.setHoleColor(opp, eng.theme.accent);
     cams.opp(eng, opp); gesture(o, 'saluda', 1.4);
-    { const f = fraseNum('elegidoT', opp); let d = false; hud.say(f.bubble, 2500, eng.host.head, 'El Presentador', { audio: f.audio }).then(() => { d = true; });
+    { const f = fraseNum('elegidoT', opp); let d = false; hud.say(f.bubble, 2500, eng.host.head, cons.presentador, { audio: f.audio }).then(() => { d = true; });
       // charla del presentador con el oponente elegido (se puede saltar)
       if (cons.presentaciones) { await s.until(() => d); await presentarRival(this.c, opp); } else await s.until(() => d); }
     // ---- prueba del duelo: rótulo en la pantalla grande ----

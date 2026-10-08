@@ -1,18 +1,16 @@
 import { cons, RIVALES } from './concursantes';
-export const VERSION = '1.3';
+export const VERSION = '1.4';
 // ======= Rótulos y créditos (editar aquí) =======
 export const CREDITOS = {
   hashtag: '#AhoraCaigo',
   /** Rótulos de la cabecera (se añade "Modo: <tema>") */
   cabecera: [
-    'Presentador: el Presentador virtual',
     'Juego creado por Iker',
     'Basado en el minijuego de Scratch',
     'Formato original: ¡Ahora Caigo! (Antena 3)',
   ],
   /** Columna de créditos del final */
   final: [
-    ['Presentador', ['El Presentador virtual']],
     ['Juego creado por', ['Iker']],
     ['Basado en', ['El minijuego de Scratch', '«¡Ahora Caigo!»']],
     ['Música y sonidos', ['Del minijuego de Scratch original']],
@@ -25,8 +23,11 @@ export const CREDITOS = {
 };
 
 /** Créditos finales con los concursantes de Opciones › Concursantes */
+export const presentadoPor = () => `${cons.presentador} (presentador virtual)`;
+/** Rótulos de la cabecera con el nombre del presentador */
+export const rotulosCabecera = () => ['Presentado por: ' + presentadoPor(), ...CREDITOS.cabecera];
 export function creditosFinal(): [string, string[]][] {
-  const out = [...CREDITOS.final];
+  const out: [string, string[]][] = [['Presentado por', [presentadoPor()]], ...CREDITOS.final];
   const c: [string, string[]][] = [];
   if (cons.central) c.push(['Concursante central', [cons.central + (cons.profesion ? ' · ' + cons.profesion : '')]]);
   c.push(['Oponentes', RIVALES.map((r, i) => `${i + 1}. ${cons.rival(i + 1)} · ${r.job}`)]);

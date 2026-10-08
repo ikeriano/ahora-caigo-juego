@@ -54,3 +54,8 @@ afiliado a ninguna cadena. El presentador es un personaje virtual inventado.
   - **Elección del central** (opcional en Opciones › Concursantes): todos con tableta y la misma pregunta, con tiempos a los lados. Si gana un oponente, entras igualmente «por invitación del público» (42 preguntas).
   - Los oponentes empiezan sin comodines; en ¡Dame letra! y ¿Sí o no? pueden ganarlos robándolos.
   - Pendiente del vídeo de referencia: «¡Vaya lío!» (el marco ya está preparado).
+
+## v1.4 — Nombre del presentador
+- Opciones › Concursantes › **Nombre del presentador** (por defecto «El Presentador», con «↺ Restablecer»; se guarda en el dispositivo).
+- El nombre sale en la cabecera de los bocadillos (en mayúsculas), los subtítulos de «La historia de ¡Ahora Caigo!», las presentaciones (el central y los oponentes saludan al presentador por su nombre en el bocadillo), el menú, los rótulos de la cabecera y los créditos («Presentado por: <nombre> (presentador virtual)»).
+- La voz sigue siendo la sintética genérica pregenerada y nunca dice el nombre personalizado (tampoco con la voz del sistema). El aspecto 3D del presentador no cambia.

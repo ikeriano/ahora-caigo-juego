@@ -4,7 +4,7 @@ import { Hud, Session, ABORT } from './hud';
 import { audio } from './assets';
 import { canvasTex } from './tex';
 import { logoCanvas, LOGO_PAL, bangPath, metalFill, drawBadge } from './logo';
-import { CREDITOS, creditosFinal } from './credits';
+import { CREDITOS, creditosFinal, rotulosCabecera } from './credits';
 import { TOP } from './set3d';
 import { gesture } from './people';
 import { confettiBurst } from './decor';
@@ -59,7 +59,7 @@ export async function cabecera(eng: Engine, hud: Hud, main: Session, extraDramat
       // el público da palmas al ritmo de la música durante los planos del dron
       publico.ritmo(CAB_MUSIC, HIT.corte + 0.2, HIT.fin - 0.3, 0.5);
       hud.hashtag(eng.theme.hashtag || CREDITOS.hashtag);
-      const lines = [...CREDITOS.cabecera, 'Modo: ' + eng.theme.name];
+      const lines = [...rotulosCabecera(), 'Modo: ' + eng.theme.name];
       if (eng.theme.banner) lines.unshift(eng.theme.banner);
       const b = eng.studio.prizeBoards[0]; const bp = b ? b.position.clone() : V3(-7, 3.7, -9.5);
       const bIn = bp.clone().multiplyScalar(0.62).setY(3.5), bIn2 = bp.clone().multiplyScalar(0.8).setY(3.6);

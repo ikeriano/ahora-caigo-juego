@@ -59,10 +59,12 @@ export const VOCES: Record<string, { model: string; spk?: number; len: number; p
 
 // ------------------------------------------------------------------ datos guardados
 const KEY = 'ac3d_concursantes';
-interface Datos { central: string; profesion: string; rivales: string[]; presentaciones: boolean; eleccion: boolean }
+interface Datos { central: string; profesion: string; rivales: string[]; presentaciones: boolean; eleccion: boolean; presentador: string }
+/** nombre del presentador por defecto (Opciones › Concursantes › Nombre del presentador) */
+export const PRESENTADOR_DEF = 'El Presentador';
 const limpia = (s: string, max = 18) => (s || '').replace(/[<>{}]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
 function cargar(): Datos {
-  const d: Datos = { central: '', profesion: '', rivales: RIVALES.map(r => r.def), presentaciones: true, eleccion: true };
+  const d: Datos = { central: '', profesion: '', rivales: RIVALES.map(r => r.def), presentaciones: true, eleccion: true, presentador: '' };
   try {
     const j = JSON.parse(localStorage.getItem(KEY) || '{}');
     if (typeof j.central === 'string') d.central = limpia(j.central);
@@ -70,6 +72,7 @@ function cargar(): Datos {
     if (Array.isArray(j.rivales)) j.rivales.slice(0, 10).forEach((n: any, i: number) => { const t = limpia(String(n ?? '')); if (t) d.rivales[i] = t; });
     if (typeof j.presentaciones === 'boolean') d.presentaciones = j.presentaciones;
     if (typeof j.eleccion === 'boolean') d.eleccion = j.eleccion;
+    if (typeof j.presentador === 'string') d.presentador = limpia(j.presentador, 24);
   } catch { }
   return d;
 }
@@ -81,6 +84,12 @@ export const cons = {
   get profesion() { return D.profesion; },
   get presentaciones() { return D.presentaciones; },
   get eleccion() { return D.eleccion; },
+  /** nombre del presentador que se muestra (bocadillos, subtítulos, créditos); por defecto «El Presentador» */
+  get presentador() { return D.presentador || PRESENTADOR_DEF; },
+  /** true si el jugador ha puesto un nombre propio al presentador */
+  get presentadorPropio() { return !!D.presentador && D.presentador !== PRESENTADOR_DEF; },
+  setPresentador(v: string) { D.presentador = limpia(v, 24); guardar(); },
+  resetPresentador() { D.presentador = ''; guardar(); },
   setEleccion(on: boolean) { D.eleccion = on; guardar(); },
   /** nombre para el marcador del duelo («Tú» si no hay nombre) */
   get tu() { return D.central || 'Tú'; },
@@ -90,7 +99,7 @@ export const cons = {
   set(k: 'central' | 'profesion', v: string) { D[k] = limpia(v, k === 'profesion' ? 60 : 18); guardar(); },
   setRival(n: number, v: string) { D.rivales[n - 1] = limpia(v) || RIVALES[n - 1].def; guardar(); },
   setPresentaciones(on: boolean) { D.presentaciones = on; guardar(); },
-  reset() { D = { central: D.central, profesion: D.profesion, rivales: RIVALES.map(r => r.def), presentaciones: D.presentaciones, eleccion: D.eleccion }; guardar(); },
+  reset() { D = { central: D.central, profesion: D.profesion, rivales: RIVALES.map(r => r.def), presentaciones: D.presentaciones, eleccion: D.eleccion, presentador: D.presentador }; guardar(); },
   onChange(f: () => void) { listeners.push(f); },
   /** solo para pruebas */ reload() { D = cargar(); listeners.forEach(f => f()); },
 };
@@ -169,7 +178,7 @@ function hostNombre(par: [string, string], nombre: string, pregen: boolean, reac
 export function guionRival(n: number, forzarArg?: boolean): Linea[] {
   const R = RIVALES[n - 1]; const nombre = cons.rival(n);
   const out: Linea[] = [hostNombre(turno('sal', SALUDOS), nombre, cons.esDef(n), 'aplauso')];
-  out.push(rival(n, turno('in' + n, R.intro)));
+  { const t = turno('in' + n, R.intro); const l = rival(n, t); if (cons.presentadorPropio) l.bubble = `¡Hola, ${cons.presentador}! ${t}`; out.push(l); }
   const arg = forzarArg ?? (argEnPartida === 0 ? Math.random() < 0.6 : Math.random() < 0.35);
   if (arg) {
     argEnPartida++;
@@ -193,7 +202,7 @@ export function guionCentral(): Linea[] {
   const out: Linea[] = [hostNombre(turno('csal', C_SALUDO), nombre, pre, 'vitores'), hostNombre(turno('cpre', C_PREG), nombre, pre)];
   if (prof) {
     const yo = nombre ? `¡Hola! Soy ${nombre} y me dedico a esto: ${prof}.` : `¡Hola! Me dedico a esto: ${prof}.`;
-    out.push({ who: 'central', bubble: yo, audio: [yo], tts: true });
+    out.push({ who: 'central', bubble: cons.presentadorPropio ? `¡Hola, ${cons.presentador}! ${yo.replace(/^¡Hola! /, '')}` : yo, audio: [yo], tts: true });
     const ch = turno('cch', C_CHISTES);
     out.push(host(`¿${cap(prof.replace(/[.!¡¿?]+$/g, ''))}? ${ch}`, [ch], 'risas'));
   } else out.push(host(C_MISTERIO, [C_MISTERIO], 'risas'));

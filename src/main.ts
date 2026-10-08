@@ -13,7 +13,7 @@ import { logoCanvas } from './logo';
 import { TOP } from './set3d';
 import { loadOpts, saveOpts, Opts } from './options';
 import { CREDITOS, VERSION, creditosFinal } from './credits';
-import { cons, RIVALES } from './concursantes';
+import { cons, RIVALES, PRESENTADOR_DEF } from './concursantes';
 import { historia, lineasHistoria } from './historia';
 import { lineasPruebas, lineasEleccion, planPruebas } from './pruebas';
 import { lineasVoz, VOCES } from './concursantes';
@@ -117,7 +117,7 @@ function showMenu(sc: Screen = 'main') {
     col.append(
       btn('Jugar', 'Programa completo, entrenamiento, clásico…', 'gold', () => showMenu('play')),
       btn('Opciones', 'Sonido, calidad gráfica, pantalla completa', '', () => showMenu('options')),
-      btn('La historia de ¡Ahora Caigo!', 'El Presentador te cuenta la historia del programa', 'hist', () => startMode('historia')),
+      btn('La historia de ¡Ahora Caigo!', `${cons.presentador} te cuenta la historia del programa`, 'hist', () => startMode('historia')),
       btn('Cómo se juega', 'Las reglas del concurso', '', () => showMenu('help')),
       btn('Créditos', '', '', () => showMenu('credits')),
     );
@@ -292,6 +292,7 @@ function opcionesConcursantes() {
   b.onclick = (e) => { e.stopPropagation(); audio.play('Tecla'); showMenu('concursantes'); };
   row.appendChild(b); box.append(n, row); return box;
 }
+const notaCentral = () => cons.presentador + ' te presentará al empezar el Programa completo. Tu nombre sale en el marcador del duelo y en los créditos.';
 /** Pantalla de edición de los concursantes (se guarda al escribir, solo en este dispositivo) */
 function pantallaConcursantes(col: HTMLElement) {
   const inp = (id: string, val: string, ph: string, max: number, on: (v: string) => void) => {
@@ -299,13 +300,23 @@ function pantallaConcursantes(col: HTMLElement) {
     i.autocomplete = 'off'; i.spellcheck = false; i.addEventListener('input', () => on(i.value)); i.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') i.blur(); });
     i.addEventListener('pointerdown', e => e.stopPropagation()); return i;
   };
+  // presentador: solo cambia el nombre que se ve (la voz sigue siendo la sintética genérica y el aspecto 3D no cambia)
+  const hp = document.createElement('div'); hp.className = 'ocustom'; hp.id = 'optPresentador';
+  const ht = document.createElement('div'); ht.className = 'olabel'; ht.textContent = '🎤 El presentador';
+  const hr = document.createElement('div'); hr.className = 'orow ofield'; const hl = document.createElement('label'); hl.textContent = 'Nombre del presentador';
+  const hin = inp('inPresentador', cons.presentadorPropio ? cons.presentador : '', PRESENTADOR_DEF, 24, v => { cons.setPresentador(v); const e = document.querySelector('#optCentral .onote'); if (e) e.textContent = notaCentral(); });
+  const hrs = document.createElement('button'); hrs.className = 'tbtn'; hrs.id = 'btnResetPresentador'; hrs.textContent = '↺ Restablecer';
+  hrs.onclick = (e) => { e.stopPropagation(); audio.play('Tecla'); cons.resetPresentador(); hin.value = ''; const n = document.querySelector('#optCentral .onote'); if (n) n.textContent = notaCentral(); };
+  hr.append(hl, hin, hrs);
+  const hn = document.createElement('p'); hn.className = 'onote small'; hn.textContent = 'Sale en los bocadillos, los subtítulos de la historia, las presentaciones y los créditos. La voz sigue siendo la sintética genérica y no dice el nombre.';
+  hp.append(ht, hr, hn);
   const c = document.createElement('div'); c.className = 'ocustom'; c.id = 'optCentral';
   const ct = document.createElement('div'); ct.className = 'olabel'; ct.textContent = '⭐ El central (tú)';
   const r1 = document.createElement('div'); r1.className = 'orow ofield'; const l1 = document.createElement('label'); l1.textContent = 'Nombre';
   r1.append(l1, inp('inCentral', cons.central, 'Tu nombre', 18, v => cons.set('central', v)));
   const r2 = document.createElement('div'); r2.className = 'orow ofield'; const l2 = document.createElement('label'); l2.textContent = 'Profesión';
   r2.append(l2, inp('inProfesion', cons.profesion, 'Ej.: estudiante, youtuber, cocinero…', 60, v => cons.set('profesion', v)));
-  const cn = document.createElement('p'); cn.className = 'onote small'; cn.textContent = 'El Presentador te presentará al empezar el Programa completo. Tu nombre sale en el marcador del duelo y en los créditos.';
+  const cn = document.createElement('p'); cn.className = 'onote small'; cn.textContent = notaCentral();
   c.append(ct, r1, r2, cn);
   const o = document.createElement('div'); o.className = 'ocustom'; o.id = 'optRivales';
   const ot = document.createElement('div'); ot.className = 'olabel'; ot.textContent = '🎯 Los 10 oponentes';
@@ -318,19 +329,19 @@ function pantallaConcursantes(col: HTMLElement) {
     row.append(num, box); grid.appendChild(row);
   });
   o.append(ot, grid);
-  const pr = document.createElement('div'); pr.className = 'orow'; const pl = document.createElement('label'); pl.textContent = '🎙️ Presentaciones con el Presentador';
+  const pr = document.createElement('div'); pr.className = 'orow'; const pl = document.createElement('label'); pl.textContent = '🎙️ Presentaciones con el presentador';
   const pb = document.createElement('button'); pb.id = 'btnPresentaciones'; const upd = () => { pb.className = 'tbtn' + (cons.presentaciones ? ' sel' : ''); pb.textContent = cons.presentaciones ? 'Sí' : 'No'; };
   pb.onclick = (e) => { e.stopPropagation(); cons.setPresentaciones(!cons.presentaciones); upd(); audio.play('Tecla'); }; upd(); pr.append(pl, pb);
   const er = document.createElement('div'); er.className = 'orow'; const el = document.createElement('label'); el.textContent = '📱 Elección del central (tabletas)';
   const eb = document.createElement('button'); eb.id = 'btnEleccion'; const upe = () => { eb.className = 'tbtn' + (cons.eleccion ? ' sel' : ''); eb.textContent = cons.eleccion ? 'Sí' : 'No'; };
   eb.onclick = (e) => { e.stopPropagation(); cons.setEleccion(!cons.eleccion); upe(); audio.play('Tecla'); }; upe(); er.append(el, eb);
   const note = document.createElement('p'); note.className = 'mtext onote2';
-  note.textContent = 'Se guarda solo en este dispositivo. Los nombres salen en los rótulos de las trampillas, los bocadillos y los créditos. La voz del Presentador es sintética y genérica: las frases con nombres personalizados se leen en el bocadillo; si tu dispositivo tiene voz en español, tu nombre y profesión los dice esa voz.';
+  note.textContent = 'Se guarda solo en este dispositivo. Los nombres salen en los rótulos de las trampillas, los bocadillos y los créditos. La voz del presentador es sintética y genérica: las frases con nombres personalizados se leen en el bocadillo; si tu dispositivo tiene voz en español, tu nombre y profesión los dice esa voz.';
   const row = document.createElement('div'); row.className = 'mrow';
   const rs = document.createElement('button'); rs.className = 'tbtn'; rs.id = 'btnResetNombres'; rs.textContent = '↺ Nombres por defecto';
   rs.onclick = (e) => { e.stopPropagation(); audio.play('Tecla'); cons.reset(); showMenu('concursantes'); };
   row.append(rs, backBtn('options'));
-  col.append(c, o, pr, er, note, row);
+  col.append(hp, c, o, pr, er, note, row);
 }
 /** Botón «atrás» (Android): devuelve false si ya estamos en la portada */
 function back(): boolean {

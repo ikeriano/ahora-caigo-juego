@@ -284,6 +284,59 @@ if (part === 'pruebas2') {
   check(plans.every(pl => pl[4] === 'gallina' && pl.filter(x => x === 'clasico').length <= 3 && new Set(pl).size >= 4) && cnt.dameletra > 0 && cnt.sino > 0, 'plan variado con ¡Dame letra! y ¿Sí o no?: ' + JSON.stringify(cnt))
 }
 
+if (part === 'presentador') {
+  const PS = 'previews/presentador/'; fs.mkdirSync(PS, { recursive: true })
+  // ---- Opciones › Concursantes › Nombre del presentador
+  await p.goto(base + '?nosw&screen=concursantes', { waitUntil: 'load' })
+  await until(() => document.getElementById('inPresentador'))
+  await ev(() => { localStorage.setItem('ac3d_concursantes', JSON.stringify({ central: 'Iker', profesion: 'youtuber', presentaciones: true, eleccion: false })); window.__cons.reload() })
+  await p.goto(base + '?nosw&screen=concursantes', { waitUntil: 'load' }); await until(() => document.getElementById('inPresentador'))
+  check(await ev(() => document.getElementById('inPresentador').placeholder === 'El Presentador' && window.__cons.presentador === 'El Presentador'), 'por defecto: «El Presentador»')
+  await p.type('#inPresentador', 'Paco Show'); await sleep(400)
+  check(await ev(() => JSON.parse(localStorage.getItem('ac3d_concursantes')).presentador === 'Paco Show'), 'guardado en localStorage')
+  await ev(() => document.getElementById('optPresentador').scrollIntoView({ block: 'center' })); await sleep(500)
+  await shot(PS + 'opciones-nombre-presentador.png')
+  await ev(() => document.getElementById('btnResetPresentador').click()); await sleep(200)
+  check(await ev(() => document.getElementById('inPresentador').value === '' && window.__cons.presentador === 'El Presentador' && !JSON.parse(localStorage.getItem('ac3d_concursantes')).presentador), 'Restablecer vuelve a «El Presentador»')
+  await p.type('#inPresentador', 'Paco Show')
+  await p.goto(base + '?nosw&screen=concursantes', { waitUntil: 'load' }); await until(() => document.getElementById('inPresentador'))
+  check(await ev(() => document.getElementById('inPresentador').value === 'Paco Show' && window.__cons.presentador === 'Paco Show'), 'se carga tras recargar')
+  // ---- créditos
+  await p.goto(base + '?nosw&screen=credits', { waitUntil: 'load' }); await until(() => document.querySelector('.mtext'))
+  await sleep(600); await shot(PS + 'creditos-presentado-por.png')
+  check(await ev(() => document.querySelector('.mtext').textContent.includes('Presentado por') && document.querySelector('.mtext').textContent.includes('Paco Show (presentador virtual)')), 'créditos: «Presentado por: Paco Show (presentador virtual)»')
+  // ---- historia: subtítulos con el nombre
+  await p.goto(base + '?nosw&screen=main', { waitUntil: 'load' })
+  await until(() => window.__eng && [...document.querySelectorAll('.mbtn')].some(b => b.textContent.includes('historia')))
+  check(await ev(() => [...document.querySelectorAll('.mbtn')].find(b => b.textContent.includes('historia')).textContent.includes('Paco Show')), 'menú: «Paco Show te cuenta la historia…»')
+  await ev(() => [...document.querySelectorAll('.mbtn')].find(b => b.textContent.includes('historia')).click())
+  await until(() => document.getElementById('historia') && window.__historia?.linea >= 0); await sleep(2400)
+  check(await ev(() => document.querySelector('#hSub b').textContent === 'Paco Show'), 'historia: subtítulos con «Paco Show»')
+  await shot(PS + 'historia-subtitulos.png')
+  // ---- programa: bocadillos y presentaciones
+  await p.goto(base + '?nosw&screen=play', { waitUntil: 'load' }); await until(() => !!(window.__eng && window.__eng.audience))
+  await ev(() => { window.__noEleccion = true; window.__presArg = false; void window.__startMode('programa') })
+  await sleep(2500); await p.click('#btnSkip')
+  await until(() => window.__pres && window.__pres.lineas[0]?.startsWith('host') && !window.__pres.done, 90000); await sleep(700)
+  const b1 = await bubble(); log('bocadillo', JSON.stringify(b1))
+  check(b1 && b1.who === 'Paco Show', 'bocadillo del presentador con «Paco Show»')
+  check(await ev(() => getComputedStyle(document.querySelector('#bubble b')).textTransform === 'uppercase'), 'cabecera del bocadillo en mayúsculas')
+  await shot(PS + 'bocadillo-paco-show.png')
+  await until(() => { const b = document.getElementById('bubble'); return !b.classList.contains('hidden') && b.textContent.includes('¡Hola, Paco Show!') }, 40000); await sleep(400)
+  const b2 = await bubble(); check(b2.who === 'Iker', 'el concursante se dirige al presentador: ' + b2.t)
+  await shot(PS + 'concursante-saluda-presentador.png')
+  await until(() => window.__pres.done, 60000)
+  await goCenter(); await pickHuella(1)
+  await until(() => window.__pres && !window.__pres.done && window.__pres.lineas.some(l => l.startsWith('rival')), 60000)
+  await until(() => { const b = document.getElementById('bubble'); return !b.classList.contains('hidden') && b.textContent.includes('¡Hola, Paco Show!') }, 30000); await sleep(400)
+  check(true, 'el oponente saluda al presentador por su nombre: ' + (await bubble()).t)
+  check(await ev(t => [1,2,3,4,5,6,7,8,9,10].some(n => window.__voice.has(t.replace('¡Hola, Paco Show! ', ''), 'op' + n)), (await bubble()).t), 'la voz genérica pregenerada dice la frase sin el nombre del presentador')
+  await shot(PS + 'oponente-saluda-presentador.png')
+  await ev(() => document.getElementById('btnSkip')?.click())
+  await until(() => !!window.__prueba, 30000); await sleep(400)
+  const b3 = await bubble(); check(b3 && b3.who === 'Paco Show', 'rótulo de la prueba: habla «Paco Show»')
+}
+
 if (part === 'perf') {
   const cdp = await p.target().createCDPSession()
   const run = async (gradas, q, thr) => {

@@ -365,3 +365,7 @@ body.kb-open #duelBar { top: 2px; transform: translateX(-50%) scale(.85); transf
 #dl .dlin .dlpaso { background: linear-gradient(#6f86b8, #3a4f80); border-color: #cfd8ea; }
 #dl:not(.guess) .dlin button, #dl:not(.mine) .dlin button { display: none; }
 #dl:not(.mine) .dlin input { display: none; }
+
+#menu #optPresentador .ofield { flex-wrap: wrap; gap: 6px 8px; }
+#menu #optPresentador .ofield label { flex: 1 0 100%; }
+#menu #optPresentador .ofield input { flex: 1 1 auto; min-width: 0; }

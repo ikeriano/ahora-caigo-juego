@@ -53,7 +53,7 @@ export async function presentarRival(c: Ctx, n: number) {
   const lineas = guionRival(n, W.__presArg);
   const nombre = cons.rival(n);
   await correr(c, lineas,
-    l => l.who === 'host' ? { p: eng.host, name: 'El Presentador' } : { p: o, name: nombre },
+    l => l.who === 'host' ? { p: eng.host, name: cons.presentador } : { p: o, name: nombre },
     (l) => {
       if (l.who === 'host') camHost(c, op);
       else { // plano del oponente desde el lado del presentador
@@ -72,7 +72,7 @@ export async function presentarCentral(c: Ctx) {
   const lineas = guionCentral();
   const nombre = cons.central;
   await correr(c, lineas,
-    l => l.who === 'central' ? { p: pl, name: nombre || 'Concursante' } : { p: eng.host, name: 'El Presentador' },
+    l => l.who === 'central' ? { p: pl, name: nombre || 'Concursante' } : { p: eng.host, name: cons.presentador },
     (l, i) => {
       if (l.who === 'central' || i === 0) {
         const pp = pl.root.position, hp = eng.host.root.position; const d = hp.clone().sub(pp).setY(0).normalize(); const side = V(-d.z, 0, d.x);

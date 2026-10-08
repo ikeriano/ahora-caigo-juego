@@ -156,7 +156,7 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
 
   try {
     // empieza el oponente (como en el programa)
-    { const f = turn === 'bot' ? fraseNum('turnoBot', opp) : { bubble: pick(L.turnoTu), audio: undefined }; hud.say(f.bubble, 2200, eng.host.head, 'El Presentador', { audio: f.audio }); }
+    { const f = turn === 'bot' ? fraseNum('turnoBot', opp) : { bubble: pick(L.turnoTu), audio: undefined }; hud.say(f.bubble, 2200, eng.host.head, cons.presentador, { audio: f.audio }); }
     await s.w(1200);
     let carry: Q | null = null;
     while (true) {
@@ -164,7 +164,7 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
       const q = carry || newQ(); carry = null;
       if (turn === 'bot') {
         const r = await botTurn(q);
-        if (r === 'tiempo') { running = false; bar.out('bot'); log('bot-tiempo'); audio.stopTag('clock'); panel.stopInput(); audio.play('DropM.mp3'); await panel.reveal(); { const f = fraseNum('botTiempo', opp); hud.say(f.bubble, 2200, eng.host.head, 'El Presentador', { audio: f.audio }); } await s.w(1200); return 'win'; }
+        if (r === 'tiempo') { running = false; bar.out('bot'); log('bot-tiempo'); audio.stopTag('clock'); panel.stopInput(); audio.play('DropM.mp3'); await panel.reveal(); { const f = fraseNum('botTiempo', opp); hud.say(f.bubble, 2200, eng.host.head, cons.presentador, { audio: f.audio }); } await s.w(1200); return 'win'; }
         turn = 'me';
       } else {
         const r = await meTurn(q);

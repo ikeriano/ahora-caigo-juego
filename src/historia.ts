@@ -9,6 +9,7 @@ import { voice } from './voice';
 import { audio } from './assets';
 import { publico } from './publico';
 import { TOP } from './set3d';
+import { cons } from './concursantes';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 type Card =
@@ -142,7 +143,7 @@ export async function historia(c: Ctx, desde = 0) {
       go = null;
       for (let j = 0; j < C.narr.length && go == null && !terminar; j++) {
         W.__historia.linea = j; skipLine = false;
-        const t = C.narr[j]; $('hSub').innerHTML = `<b>El Presentador</b><span>${esc(t)}</span>`; $('hSub').classList.add('on');
+        const t = C.narr[j]; $('hSub').innerHTML = `<b>${esc(cons.presentador)}</b><span>${esc(t)}</span>`; $('hSub').classList.add('on');
         gesture(eng.host, 'habla', 2.5);
         const v = voice.speak(t); const t0 = performance.now(); let fin = false; v.done.then(() => { fin = true; });
         const read = 1200 + t.length * 45;

@@ -517,7 +517,7 @@ export async function eleccionCentral(c: Ctx): Promise<{ ganador: number; tiempo
     await s.w(800); panel.hideAll(300);
     gesture(eng.host, 'habla', 3);
     if (ganador === 0) { publico.vitores(3); audio.play('QuemFicaEmPé-Acerto'); d = false; hud.say(EL.tu, 3000).then(() => { d = true; }); }
-    else if (ganador > 0) { publico.risas(); setTimeout(() => publico.aplauso(3, 0.7), 800); d = false; hud.say(EL.bot[0].replace('{nombre}', names[ganador]), 3500, eng.host.head, 'El Presentador', { audio: [EL.bot[1]] }).then(() => { d = true; }); }
+    else if (ganador > 0) { publico.risas(); setTimeout(() => publico.aplauso(3, 0.7), 800); d = false; hud.say(EL.bot[0].replace('{nombre}', names[ganador]), 3500, eng.host.head, cons.presentador, { audio: [EL.bot[1]] }).then(() => { d = true; }); }
     else { publico.risas(); d = false; hud.say(EL.nadie, 3000).then(() => { d = true; }); }
     await s.until(() => d); await s.w(400);
     return { ganador, tiempos };
