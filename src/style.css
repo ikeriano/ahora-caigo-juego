@@ -406,3 +406,20 @@ body.kb-open #duelBar { top: 2px; transform: translateX(-50%) scale(.85); transf
 #menu .gprev .gb i.sp { background: none; width: 10px; }
 #menu .gprev.escuchando .gq, #menu .gprev.escuchando .gb { visibility: hidden; }
 #menu .gprev.escuchando::before { content: '🐔🎵 Sonando hasta el corte…'; color: #ffe27a; font: 800 16px Arial; }
+/* v1.6 monólogo «cambiando las normas»: rótulo de normas inventadas */
+#normas { position: absolute; left: 50%; top: 9%; transform: translateX(-50%) scale(.9); opacity: 0; transition: opacity .35s, transform .35s; min-width: min(560px, 80vw); max-width: 86vw;
+  background: linear-gradient(#1846c9, #0a1f6e); border: 3px solid #ffd23a; border-radius: 16px; box-shadow: 0 6px 24px #000a, inset 0 0 18px #4fc3ff55; padding: 10px 18px 12px; pointer-events: none; z-index: 30; }
+#normas.on { opacity: 1; transform: translateX(-50%) scale(1); }
+#normas.fuera { opacity: 0; transform: translateX(-50%) translateY(-30px) scale(.85); }
+#normas h3 { margin: 0 0 6px; text-align: center; color: #ffd23a; font: 900 clamp(15px, 2.6vw, 24px) Arial, Roboto, sans-serif; letter-spacing: 1px; text-shadow: 0 2px 4px #000; }
+#normas ol { margin: 0; padding-left: 1.6em; color: #fff; font: 800 clamp(13px, 2.1vw, 20px)/1.35 Arial, Roboto, sans-serif; text-shadow: 0 2px 3px #000; }
+#normas li { opacity: 0; transform: translateX(-20px); transition: all .4s; position: relative; }
+#normas li.in { opacity: 1; transform: none; }
+#normas li.tachada::after { content: ''; position: absolute; left: -4px; right: -4px; top: 52%; height: 4px; background: #ff3b3b; border-radius: 2px; box-shadow: 0 0 6px #f00; animation: tacha .5s ease-out both; transform-origin: left; }
+@keyframes tacha { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+/* v1.6 lista de monólogos */
+#menu .monolist { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+#menu .monolist .tbtn { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; text-align: left; padding: 6px 10px; }
+#menu .monolist .tbtn span { grid-row: span 2; font-size: 22px; align-self: center; }
+#menu .monolist .tbtn b { font-size: clamp(12px, 1.8vw, 15px); }
+#menu .monolist .tbtn small { color: #9fb4d8; font-size: clamp(10px, 1.4vw, 12px); font-weight: 600; }

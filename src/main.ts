@@ -25,6 +25,7 @@ import { isMobile } from './engine';
 import { gesture } from './people';
 import { initCustomAudio, customInfo, setCustomAudio, clearCustomAudio, customReady, CUSTOM } from './customaudio';
 import { cabOpts } from './intro';
+import { MONOLOGOS, monologo, elegirMonologo, monoOpts, lineasMonologos, type Monologo } from './monologos';
 import { initGallina, hayCanciones, guardarCancion, canciones } from './gallina';
 import { opcionesGallina, pantallaGallina } from './gallina-ui';
 import { crowd, estimateBeat } from './crowd';
@@ -51,7 +52,7 @@ async function boot() {
   (window as any).__voiceLines = () => {
     const out = new Map<string, { t: string; v?: string; h: string }>();
     const add = (t: string, v?: string) => { const h = voice.key(t, v); if (!out.has(h)) out.set(h, { t, v, h }); };
-    allLines().forEach(t => add(t)); lineasVoz().forEach(l => add(l.t, l.v)); lineasHistoria().forEach(t => add(t)); lineasPruebas().forEach(t => add(t)); lineasEleccion().forEach(t => add(t));
+    allLines().forEach(t => add(t)); lineasVoz().forEach(l => add(l.t, l.v)); lineasHistoria().forEach(t => add(t)); lineasPruebas().forEach(t => add(t)); lineasEleccion().forEach(t => add(t)); lineasMonologos().forEach(t => add(t));
     return [...out.values(), ...lineasLectura()];
   };
   (window as any).__voces = VOCES; (window as any).__planPruebas = planPruebas;
@@ -76,7 +77,7 @@ async function boot() {
 }
 
 // ------------------------------------------------------------------ MENÚS
-type Screen = 'title' | 'main' | 'play' | 'train' | 'options' | 'help' | 'credits' | 'concursantes' | 'gallina';
+type Screen = 'title' | 'main' | 'play' | 'train' | 'options' | 'help' | 'credits' | 'concursantes' | 'gallina' | 'monologos';
 const esc = (t: string) => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as any)[c]);
 let screen: Screen = 'title';
 const isApk = !!(window as any).AndroidKb || /; wv\)/.test(navigator.userAgent);
@@ -132,6 +133,7 @@ function showMenu(sc: Screen = 'main') {
       btn('Entrenamiento', 'Practica pruebas y la elección de huellas', '', () => showMenu('train')),
       btn('Clásico', 'El minijuego original de Scratch', '', () => startMode('clasico')),
       btn('Explorar el plató', 'Pasea libremente por el plató 3D', '', () => startMode('explorar')),
+      btn('Monólogos del presentador', 'Sus números de humor: con el público, al teléfono y las normas', '', () => showMenu('monologos')),
     );
     col.appendChild(h2('Programa especial'));
     const g = document.createElement('div'); g.className = 'themes';
@@ -175,7 +177,7 @@ function showMenu(sc: Screen = 'main') {
       const l = document.createElement('label'); l.textContent = label; r.append(l, b, sl); return r;
     };
     col.append(tog('🎵 Música', 'music', 'musicVol'), opcionesCabecera(), musicaCabecera(), tog('🔊 Efectos', 'sfx', 'sfxVol'), opcionesPublico(tog));
-    const onoff = (label: string, k: 'voz' | 'chistes' | 'lee') => {
+    const onoff = (label: string, k: 'voz' | 'chistes' | 'lee' | 'monologo') => {
       const r = document.createElement('div'); r.className = 'orow'; const l = document.createElement('label'); l.textContent = label;
       const b = document.createElement('button'); const upd = () => { b.className = 'tbtn' + (opts[k] ? ' sel' : ''); b.textContent = opts[k] ? 'Sí' : 'No'; };
       b.onclick = (e) => { e.stopPropagation(); opts[k] = !opts[k]; upd(); applyOpts(); audio.play('Tecla'); }; upd(); r.append(l, b); return r;
@@ -184,7 +186,8 @@ function showMenu(sc: Screen = 'main') {
     const lv = document.createElement('div'); lv.className = 'orow'; lv.id = 'rowLeeVel'; const lvl = document.createElement('label'); lvl.textContent = '⏩ Velocidad de lectura'; lv.appendChild(lvl);
     for (const [v, t] of [['normal', 'Normal'], ['rapida', 'Rápida']] as const) { const b = document.createElement('button'); b.className = 'tbtn' + (opts.leeVel === v ? ' sel' : ''); b.textContent = t; b.dataset.v = v; b.onclick = (e) => { e.stopPropagation(); opts.leeVel = v; applyOpts(); audio.play('Tecla'); lv.querySelectorAll('button').forEach(x => x.classList.toggle('sel', (x as HTMLElement).dataset.v === v)); }; lv.appendChild(b); }
     const lee = onoff('📖 El presentador lee las preguntas', 'lee'); lee.id = 'rowLee';
-    col.append(onoff('🎤 Voz del presentador', 'voz'), lee, lv, onoff('😄 Chistes del presentador', 'chistes'), opcionesConcursantes());
+    const mono = onoff('🎭 Monólogo del presentador', 'monologo'); mono.id = 'rowMonologo';
+    col.append(onoff('🎤 Voz del presentador', 'voz'), lee, lv, onoff('😄 Chistes del presentador', 'chistes'), mono, opcionesConcursantes());
     const q = document.createElement('div'); q.className = 'orow'; const ql = document.createElement('label'); ql.textContent = '✨ Calidad gráfica'; q.appendChild(ql);
     for (const v of ['baja', 'media', 'alta'] as const) { const b = document.createElement('button'); b.className = 'tbtn' + (opts.quality === v ? ' sel' : ''); b.textContent = v[0].toUpperCase() + v.slice(1); b.onclick = (e) => { e.stopPropagation(); opts.quality = v; applyOpts(); showMenu('options'); }; q.appendChild(b); }
     const f = document.createElement('div'); f.className = 'orow'; const fl = document.createElement('label'); fl.textContent = '⛶ Pantalla completa'; f.appendChild(fl);
@@ -194,6 +197,20 @@ function showMenu(sc: Screen = 'main') {
     col.append(opcionesPlato(), opcionesGallina(() => showMenu('gallina')));
     const info = document.createElement('p'); info.className = 'mtext'; info.textContent = `Rendimiento actual: ${Math.round(eng.fps)} fps. Si el juego va lento en tu móvil, elige calidad «Baja».`;
     col.append(q, f, info, backBtn('main'));
+  } else if (sc === 'monologos') {
+    col.appendChild(h2('Monólogos del presentador'));
+    const ic: Record<string, string> = { publico: '👏', telefono: '📱', normas: '📜' };
+    const tp: Record<string, string> = { publico: 'Con el público', telefono: 'Al teléfono', normas: 'Cambiando las normas' };
+    const g = document.createElement('div'); g.className = 'monolist'; g.id = 'monoList';
+    const azar = btn('🎲 Al azar', 'Uno cualquiera (y luego «Siguiente»)', 'gold', () => startMode('monologos', 'azar')); azar.id = 'monoAzar'; col.appendChild(azar);
+    for (const m of MONOLOGOS) {
+      const b = document.createElement('button'); b.className = 'tbtn'; b.dataset.id = m.id;
+      b.innerHTML = `<span>${ic[m.tipo]}</span><b></b><small>${tp[m.tipo]}${m.tema ? ' · ' + (THEMES.find(t => t.id === m.tema)?.name || m.tema) : ''}</small>`;
+      (b.querySelector('b') as HTMLElement).textContent = m.titulo;
+      b.onclick = (e) => { e.stopPropagation(); audio.play('Tecla'); startMode('monologos', m.id); }; g.appendChild(b);
+    }
+    const nt = document.createElement('p'); nt.className = 'mtext onote2'; nt.textContent = `${cons.presentador} es un presentador virtual inventado con voz sintética genérica. Toca el bocadillo para pasar de frase, o el plató para saltar el monólogo.`;
+    col.append(g, nt, backBtn('play'));
   } else if (sc === 'gallina') {
     col.classList.add('opts'); col.appendChild(h2('Palabra gallina'));
     pantallaGallina(col, backBtn('options'), () => showMenu('gallina'));
@@ -282,7 +299,7 @@ async function toggleFullscreen() {
     else { await document.documentElement.requestFullscreen({ navigationUI: 'hide' } as any); try { await (screen as any).orientation?.lock?.('landscape'); } catch { } }
   } catch { hud.toast('Tu navegador no permite pantalla completa aquí', 2500); }
 }
-function applyOpts() { cabOpts.video = opts.cabecera === 'iker'; cabOpts.vol = opts.musicVol; cabOpts.mute = !opts.music; lector.on = opts.lee; lector.rapida = opts.leeVel === 'rapida'; if (!opts.lee || !opts.voz) lector.stop(); audio.setLevels(opts); crowd.setLevel(opts.publico, opts.publicoVol); voice.enabled = opts.voz; voice.jokes = opts.chistes; if (eng.quality !== opts.quality) eng.setQuality(opts.quality); eng.setAudienceVisible(opts.gradas); saveOpts(opts); }
+function applyOpts() { monoOpts.on = opts.monologo; cabOpts.video = opts.cabecera === 'iker'; cabOpts.vol = opts.musicVol; cabOpts.mute = !opts.music; lector.on = opts.lee; lector.rapida = opts.leeVel === 'rapida'; if (!opts.lee || !opts.voz) lector.stop(); audio.setLevels(opts); crowd.setLevel(opts.publico, opts.publicoVol); voice.enabled = opts.voz; voice.jokes = opts.chistes; if (eng.quality !== opts.quality) eng.setQuality(opts.quality); eng.setAudienceVisible(opts.gradas); saveOpts(opts); }
 
 /** Opciones › Cabecera (v1.6): el vídeo de Iker o la cabecera 3D en el plató */
 function opcionesCabecera() {
@@ -395,7 +412,7 @@ function back(): boolean {
   if (!$('classicWrap').classList.contains('hidden')) { ($('classicBack') as HTMLButtonElement).click(); return true; }
   document.querySelector('#menu .modal')?.remove();
   if (session) { stopMode(); return true; }
-  const up: Record<Screen, Screen | null> = { title: null, main: 'title', play: 'main', train: 'play', options: 'main', help: 'main', credits: 'main', concursantes: 'options', gallina: 'options' };
+  const up: Record<Screen, Screen | null> = { title: null, main: 'title', play: 'main', train: 'play', options: 'main', help: 'main', credits: 'main', concursantes: 'options', gallina: 'options', monologos: 'play' };
   const to = up[screen]; if (!to) return false; showMenu(to); return true;
 }
 (window as any).__back = back;
@@ -437,6 +454,18 @@ async function startMode(mode: string, sub?: any) {
     } else if (mode === 'historia') {
       await historia(c, +(sub || 0));
       if (session === s) { session.alive = false; session = null; menuMusic = false; showMenu('main'); }
+    } else if (mode === 'monologos') {
+      // modo aparte: ver los monólogos sueltos (elegido de la lista o al azar, con «Siguiente»)
+      const orden = MONOLOGOS.map(m => m.id);
+      const m: Monologo = sub && sub !== 'azar' ? MONOLOGOS.find(x => x.id === sub)! : elegirMonologo(themeId);
+      eng.opps.forEach(o => o.root.visible = true); audio.playMusic('TrilhaCurta@Stage'); publico.aplauso(2.5, 0.7);
+      eng.startOrbit(new THREE.Vector3(0, 0, 0), 9.5, 4.2, 0.4, 0.15, 1.2); await s.w(1800); audio.stopMusic(1.2);
+      await monologo(c, m, s);
+      const next = sub === 'azar' ? 'azar' : orden[(orden.indexOf(m.id) + 1) % orden.length];
+      hud.score(`🎭 «${m.titulo}»`, true);
+      hud.actions([{ label: 'Siguiente ▶', cls: 'gold', fn: () => startMode('monologos', next) }, { label: 'Repetir', fn: () => startMode('monologos', m.id) }, { label: 'Lista', fn: () => { if (session) session.alive = false; session = null; menuMusic = false; showMenu('monologos'); } }]);
+      eng.startOrbit(new THREE.Vector3(0, 0, 0), 10.8, 5, 0, 0.08, 1);
+      await s.until(() => false);
     } else if (mode === 'explorar') {
       eng.player.root.position.set(0, 0, 10.5); eng.player.root.rotation.y = Math.PI; eng.walkMode(true);
       hud.hint('🕹️ Joystick / WASD para andar · arrastra para mirar · 👁 cambia de cámara');

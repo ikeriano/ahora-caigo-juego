@@ -9,6 +9,7 @@ import { Bank, Q } from './questions';
 import { TOP } from './set3d';
 import { gesture } from './people';
 import { cabecera, despedida, CAB_MUSIC, cabOpts, cabeceraIker } from './intro';
+import { monologo, elegirMonologo, monoOpts } from './monologos';
 import { confettiBurst } from './decor';
 import { L, pick, fill } from './lines';
 import { Chistes, JokeCtx } from './jokes';
@@ -184,6 +185,8 @@ export class Programa {
     if (!eng.theme.extra?.length) publico.aplauso(2.2, 0.55);
     for (const x of eng.theme.extra || []) { gesture(eng.host, 'habla', 2.5); await this.talk(x, 3000); publico.vitores(3); }
     if (eng.theme.festivo) { confettiBurst(eng.studio, V(-2, TOP + 2, 1)); confettiBurst(eng.studio, V(2, TOP + 2, 1)); publico.vitores(3.5); }
+    // ---- monólogo del presentador (v1.6) ----
+    if (monoOpts.on && !(window as any).__noMono) { await s.w(500); await monologo(this.c, elegirMonologo(eng.theme.id), s); cams.wide(eng); }
     // ---- presentación del concursante central ----
     nuevaPartida();
     if (cons.presentaciones) { await s.w(400); await presentarCentral(this.c); }
