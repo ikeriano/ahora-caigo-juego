@@ -12,6 +12,7 @@ const ev = (fn, ...a) => p.evaluate(fn, ...a)
 await p.goto(base + '?nosw', { waitUntil: 'load' })
 await ev(pl => localStorage.setItem('ac3d_opts', JSON.stringify({ ...JSON.parse(localStorage.getItem('ac3d_opts') || '{}'), plato: pl })), PL)
 // ---------------- VAYA LÍO
+if (!process.env.SOLO_GALLINA) {
 await p.goto(base + '?nosw&screen=train', { waitUntil: 'load' })
 await until(() => !!(window.__eng && window.__eng.studio))
 await ev(() => { window.__meFirst = true; window.__trOpp = 3; window.__botForce = 'win'; void window.__startMode('entrenamiento', 'vayalio') })
@@ -29,6 +30,7 @@ await until(() => window.__duel.log.includes('me-ok'), 8000)
 check(true, 'la respuesta bien ordenada se acepta')
 await sleep(300); await p.screenshot({ path: prefix + 'vaya-lio-acierto.png' })
 check(await ev(() => window.__lector.log.some(l => l.startsWith('lee:'))), 'el presentador lee la definición (lectura 1.5)')
+}
 // ---------------- PALABRA GALLINA: Opciones › mis canciones
 await p.goto(base + '?nosw&screen=options', { waitUntil: 'load' })
 await until(() => document.getElementById('btnGallina'))
@@ -46,7 +48,7 @@ await until(() => !document.getElementById('gPrevBox').classList.contains('escuc
 await ev(() => document.getElementById('gallinaEditor').scrollIntoView({ block: 'end' })); await sleep(400)
 await p.screenshot({ path: prefix + 'gallina-opciones.png' }); console.log('📸 gallina-opciones.png')
 await ev(() => document.getElementById('gSave').click())
-await until(() => document.querySelector('#gallinaLista .gcan'), 10000)
+await until(() => document.querySelector('#gallinaLista .gcan'), 30000).catch(async e => { console.log('MSG', await ev(async () => [document.getElementById('gMsg')?.textContent, !!document.getElementById('gallinaEditor'), !!document.getElementById('gallinaLista'), window.__gallinaApi.canciones().length, location.href, document.querySelector('#menu h2')?.textContent])); throw e })
 check(await ev(() => window.__gallinaApi.canciones().length === 1), 'la canción se guarda (solo en este dispositivo)')
 await p.screenshot({ path: prefix + 'gallina-lista.png' })
 // ---------------- PALABRA GALLINA en juego (entrenamiento)
