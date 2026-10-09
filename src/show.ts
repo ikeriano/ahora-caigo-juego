@@ -31,7 +31,7 @@ export const cams = {
   opp(e: Engine, n: number, glide = 0) {
     const o = e.studio.holes[n].pos; const c = o.clone().setY(0).normalize().negate();
     const side = V(-c.z, 0, c.x);
-    const p = o.clone().addScaledVector(c, 3.4).addScaledVector(side, 0.8).setY(TOP + 2.2); const l = o.clone().setY(TOP + 0.9);
+    const p = o.clone().addScaledVector(c, 3.4).addScaledVector(side, 0.8).setY(o.y + 2.2); const l = o.clone().setY(o.y + 0.9);
     glide ? e.glide(p, l, glide) : e.cut(p, l);
   },
   duel(e: Engine, n: number, glide = 0) {

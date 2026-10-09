@@ -4,15 +4,38 @@ import { cons } from './concursantes';
 import { Theme } from './themes';
 import { buildDecor } from './decor';
 import { drawLogo, LOGO_PAL } from './logo';
+import { buildVirtual, heightAtVirtual, type LookId } from './plato-virtual';
 
-export const TABLE_R = 3.3, TOP = 1.1, RING_IN = 5.2, RING_OUT = 8.4, TIER_OUT = 10.2, WALL_R = 12.5;
-export const A0 = THREE.MathUtils.degToRad(34), A1 = THREE.MathUtils.degToRad(166);
+/** Plató elegido en Opciones (v1.6): 'clasico' (el de siempre) o 'virtual' (el plató virtual con trampillas en anillo) */
+export type PlatoId = 'clasico' | 'virtual';
+export let PLATO: PlatoId = 'clasico';
+const D2R = THREE.MathUtils.degToRad;
+// Medidas del plató activo. Son `let` exportados (enlaces vivos): setPlato() las cambia para todos los módulos.
+export let TABLE_R = 3.3, TOP = 1.1, RING_IN = 5.2, RING_OUT = 8.4, TIER_OUT = 10.2, WALL_R = 12.5;
+/** altura del suelo del anillo de trampillas de los oponentes */
+export let RING_Y = 1.1;
+export let A0 = D2R(34), A1 = D2R(166);
 /** Filas del público sobre la grada trasera (radio del asiento y altura del suelo de la fila) */
-export const ROWS = [{ r: 8.85, y: 1.7 }, { r: 9.42, y: 1.95 }, { r: 9.95, y: 2.2 }];
+export let ROWS = [{ r: 8.85, y: 1.7 }, { r: 9.42, y: 1.95 }, { r: 9.95, y: 2.2 }];
 /** Ángulos de los pasillos de la grada (a cada lado) y extremos útiles de la grada */
-export const AISLES = [THREE.MathUtils.degToRad(73), THREE.MathUtils.degToRad(104), THREE.MathUtils.degToRad(135)];
-export const TIER_A = [A0 + 0.12 + 0.03, A1 - 0.03];
-/** Huecos para decoración en la grada: extremos y pasillos, en la primera y la última fila */
+export let AISLES = [D2R(73), D2R(104), D2R(135)];
+export let TIER_A = [A0 + 0.12 + 0.03, A1 - 0.03];
+export function setPlato(id: PlatoId) {
+  PLATO = id === 'virtual' ? 'virtual' : 'clasico';
+  if (PLATO === 'virtual') {
+    TABLE_R = 3.0; TOP = 1.1; RING_IN = 3.8; RING_OUT = 6.6; TIER_OUT = 11.4; WALL_R = 12.5; RING_Y = 0.5;
+    A0 = D2R(25); A1 = D2R(170);
+    ROWS = [{ r: 8.3, y: 1.0 }, { r: 9.0, y: 1.4 }, { r: 9.7, y: 1.8 }, { r: 10.4, y: 2.2 }];
+    AISLES = [D2R(56), D2R(92), D2R(126)];
+    TIER_A = [D2R(21), D2R(148)];
+  } else {
+    TABLE_R = 3.3; TOP = 1.1; RING_IN = 5.2; RING_OUT = 8.4; TIER_OUT = 10.2; WALL_R = 12.5; RING_Y = 1.1;
+    A0 = D2R(34); A1 = D2R(166);
+    ROWS = [{ r: 8.85, y: 1.7 }, { r: 9.42, y: 1.95 }, { r: 9.95, y: 2.2 }];
+    AISLES = [D2R(73), D2R(104), D2R(135)];
+    TIER_A = [A0 + 0.12 + 0.03, A1 - 0.03];
+  }
+}
 export function tierSpots() {
   const out: { r: number; a: number; y: number }[] = [];
   const angs = [TIER_A[0] + 0.02, ...AISLES, TIER_A[1] - 0.01];
@@ -33,8 +56,13 @@ export class Studio {
   screenMats: THREE.MeshBasicMaterial[] = [];
   lights: THREE.Light[] = [];
   prizeBoards: THREE.Group[] = [];
+  /** punto de la pantalla grande al que miran las cámaras (tarjetas de prueba) */
+  screenFocus = new THREE.Vector3(0, 3.45, -11.6);
+  /** looks de luz del plató virtual (blanco / morado / morado+cian) */
+  look: LookId = 'morado'; setLook: (l: LookId) => void = () => { };
   t = 0;
   constructor(public theme: Theme, logoUrl: string, mobile: boolean) {
+    if (PLATO === 'virtual') { buildVirtual(this, theme, mobile); buildDecor(this, theme); return; }
     const R = this.root, th = theme;
     const L = (c: number, e = 0) => new THREE.MeshLambertMaterial({ color: c, emissive: e });
     const glowCol = new THREE.Color(th.glow), accCol = new THREE.Color(th.accent);
@@ -342,6 +370,7 @@ export class Studio {
 
   /** Altura del suelo en (x,z) o null si no se puede pasar */
   heightAt(x: number, z: number): number | null {
+    if (PLATO === 'virtual') return heightAtVirtual(x, z);
     const r = Math.hypot(x, z), a = Math.abs(Math.atan2(x, z));
     if (r > WALL_R - 1.0) return null;
     if (z < -10.2 && Math.abs(x) < 3.8) return null; // pantalla del fondo

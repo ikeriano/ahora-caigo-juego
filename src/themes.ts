@@ -16,6 +16,8 @@ export interface Theme {
   credito?: [string, string[]];
   /** gala con confeti en cabecera, caídas y marcador */
   festivo?: boolean;
+  /** decorado dorado del Juego Final (lo pone el motor) */
+  gold?: boolean;
 }
 export const THEMES: Theme[] = [
   { id: 'normal', name: 'Normal', emoji: '⭐', wallA: '#0b2fa8', wallB: '#1b52e6', chevA: '#ffd23a', chevB: '#f39a12', glow: 0x39c8ff, accent: 0xffa020, fog: 0x030817, bg: 0x02040c,

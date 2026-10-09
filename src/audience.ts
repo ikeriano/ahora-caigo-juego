@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Theme } from './themes';
 import type { LightRig } from './lights';
-import { ROWS, AISLES, TIER_A } from './set3d';
+import { ROWS, AISLES, TIER_A, PLATO } from './set3d';
 import { canvasTex } from './tex';
 
 export type Reaccion = 'idle' | 'aplauso' | 'ritmo' | 'vitores' | 'ovacion' | 'ooh' | 'oohSuave';
@@ -207,7 +207,7 @@ export class Audience {
     const seatMat = stageLit(new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x05070c }), this.u);
     const signDefs = look.signs.map(([txt], i) => ({ txt, tex: signTex(txt, i && look.signBg2 ? look.signBg2 : look.signBg, i && look.signFg2 ? look.signFg2 : look.signFg) }));
     const signMats = signDefs.map(d => { const white = stageLit(new THREE.MeshLambertMaterial({ color: 0xf2f2f2 }), this.u); const front = stageLit(new THREE.MeshLambertMaterial({ map: d.tex, emissive: 0x222222, emissiveMap: d.tex }), this.u); return [white, front]; });
-    const rows = quality === 'baja' ? ROWS.slice(0, 2) : ROWS;
+    const rows = quality === 'baja' ? ROWS.slice(0, 2) : quality === 'media' ? ROWS.slice(0, 3) : ROWS;
     const SP = 0.52; // separación entre asientos (m)
     // ---- asientos: cada lado, cada fila, por tramos entre pasillos
     const seats: { side: number; row: number; x: number; y: number; z: number; yaw: number; ang: number }[] = [];
@@ -249,7 +249,7 @@ export class Audience {
       const lS = mk('legsSit', G.legsSit, mat, n), lT = mk('legsStand', G.legsStand, mat, n);
       for (const k of Object.keys(accCount) as AccKey[]) mk('acc-' + k, G.acc[k], mat, accCount[k]!);
       half.signMeshes = signDefs.map((_, si) => { const im = new THREE.InstancedMesh(G.sign, signMats[si], Math.max(1, signCount[si])); im.count = signCount[si]; im.name = 'pub-sign' + si; half.root.add(im); return im; });
-      const seatCol = new THREE.Color(th.id === 'normal' ? 0x1b2a5a : 0x1a1d28);
+      const seatCol = new THREE.Color(PLATO === 'virtual' ? 0xe6e8ef : th.id === 'normal' ? 0x1b2a5a : 0x1a1d28);
       half.people.forEach((p, i) => {
         const o = outfits[i];
         seatsM.setMatrixAt(i, _m.copy(p.base).multiply(_t.makeScale(1 / p.sc, 1 / p.sc, 1 / p.sc)).setPosition(_v.setFromMatrixPosition(p.base).setY(ROWS[p.row].y))); seatsM.setColorAt(i, seatCol);

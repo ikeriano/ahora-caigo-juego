@@ -10,7 +10,7 @@ import { Panel, showVidas } from './prueba';
 import { Programa, Ctx } from './show';
 import { entrenamiento, TrainKind } from './training';
 import { logoCanvas } from './logo';
-import { TOP } from './set3d';
+import { TOP, setPlato } from './set3d';
 import { loadOpts, saveOpts, Opts } from './options';
 import { CREDITOS, VERSION, creditosFinal } from './credits';
 import { cons, RIVALES, PRESENTADOR_DEF } from './concursantes';
@@ -38,7 +38,7 @@ let opts: Opts;
 async function boot() {
   await loadManifest(); initAudio(); crowd.init(); await voice.load(); lector.init(); initCustomAudio();
   eng = new Engine($('c3d') as HTMLCanvasElement, imgUrl(costume('Menu', 1).f)); publico.bind(eng);
-  { const o0 = loadOpts(isMobile ? 'media' : 'alta'); eng.showAudience = o0.gradas; }
+  { const o0 = loadOpts(isMobile ? 'media' : 'alta'); eng.showAudience = o0.gradas; const pq = q.get('plato'); setPlato(pq === 'virtual' || pq === 'clasico' ? pq : o0.plato); eng.platoLuz = (q.get('luz') as any) || o0.platoLuz; }
   eng.setTheme(themeById(themeId));
   opts = loadOpts(isMobile ? 'media' : 'alta'); eng.quality = 'x' as any; applyOpts();
   setupControls(eng, $('touch'));
@@ -91,7 +91,7 @@ function h2(t: string) { const h = document.createElement('h2'); h.textContent =
 let menuMusic = false;
 function menuBackdrop() {
   if (session) { session.alive = false; session = null; }
-  if (!menuMusic) { resetScene(); eng.startOrbit(new THREE.Vector3(0, 0, 0), 10.8, 4.8, 0.5, 0.06, 1.2); audio.playMusic('Trilha', true, 0.45); menuMusic = true; }
+  if (!menuMusic) { resetScene(); eng.lookEvent('menu'); eng.startOrbit(new THREE.Vector3(0, 0, 0), 10.8, 4.8, 0.5, 0.06, 1.2); audio.playMusic('Trilha', true, 0.45); menuMusic = true; }
 }
 
 function showMenu(sc: Screen = 'main') {
@@ -187,6 +187,7 @@ function showMenu(sc: Screen = 'main') {
     const fb = document.createElement('button'); fb.className = 'tbtn' + (document.fullscreenElement ? ' sel' : ''); fb.textContent = document.fullscreenElement ? 'Salir' : 'Activar';
     fb.onclick = async (e) => { e.stopPropagation(); await toggleFullscreen(); setTimeout(() => showMenu('options'), 300); }; f.appendChild(fb);
     if (isApk) fb.disabled = true, fb.textContent = 'Siempre (app)';
+    col.append(opcionesPlato());
     const info = document.createElement('p'); info.className = 'mtext'; info.textContent = `Rendimiento actual: ${Math.round(eng.fps)} fps. Si el juego va lento en tu móvil, elige calidad «Baja».`;
     col.append(q, f, info, backBtn('main'));
   } else if (sc === 'concursantes') {
@@ -275,6 +276,29 @@ async function toggleFullscreen() {
   } catch { hud.toast('Tu navegador no permite pantalla completa aquí', 2500); }
 }
 function applyOpts() { lector.on = opts.lee; lector.rapida = opts.leeVel === 'rapida'; if (!opts.lee || !opts.voz) lector.stop(); audio.setLevels(opts); crowd.setLevel(opts.publico, opts.publicoVol); voice.enabled = opts.voz; voice.jokes = opts.chistes; if (eng.quality !== opts.quality) eng.setQuality(opts.quality); eng.setAudienceVisible(opts.gradas); saveOpts(opts); }
+
+/** Opciones › Plató (v1.6): el clásico o el plató virtual (y el look de luces del virtual) */
+function opcionesPlato() {
+  const box = document.createElement('div');
+  const r = document.createElement('div'); r.className = 'orow'; r.id = 'rowPlato'; const l = document.createElement('label'); l.textContent = '🏟️ Plató'; r.appendChild(l);
+  for (const [v, t] of [['clasico', 'Clásico'], ['virtual', 'Plató virtual']] as const) {
+    const b = document.createElement('button'); b.className = 'tbtn' + (opts.plato === v ? ' sel' : ''); b.textContent = t; b.dataset.v = v;
+    b.onclick = (e) => { e.stopPropagation(); audio.play('Tecla'); if (opts.plato === v) return; opts.plato = v; saveOpts(opts); setPlato(v); eng.setTheme(themeById(themeId)); applyOpts(); eng.resetPositions(); eng.lookEvent('menu'); eng.startOrbit(new THREE.Vector3(0, 0, 0), 10.8, 4.8, 0.5, 0.06, 1.2); showMenu('options'); };
+    r.appendChild(b);
+  }
+  box.appendChild(r);
+  if (opts.plato === 'virtual') {
+    const r2 = document.createElement('div'); r2.className = 'orow'; r2.id = 'rowPlatoLuz'; const l2 = document.createElement('label'); l2.textContent = '💡 Luces del plató'; r2.appendChild(l2);
+    for (const [v, t] of [['auto', 'Auto'], ['blanco', 'Blanco'], ['morado', 'Morado'], ['cian', 'Morado+cian']] as const) {
+      const b = document.createElement('button'); b.className = 'tbtn' + (opts.platoLuz === v ? ' sel' : ''); b.textContent = t; b.dataset.v = v;
+      b.onclick = (e) => { e.stopPropagation(); audio.play('Tecla'); opts.platoLuz = v; eng.platoLuz = v; eng.applyLook(); saveOpts(opts); r2.querySelectorAll('button').forEach(x => x.classList.toggle('sel', (x as HTMLElement).dataset.v === v)); };
+      r2.appendChild(b);
+    }
+    box.appendChild(r2);
+  }
+  const n = document.createElement('p'); n.className = 'onote'; n.textContent = opts.plato === 'virtual' ? 'Plató virtual: trampillas en anillo alrededor de la tarima central, gradas a los lados y pantalla vertical al fondo. Las luces automáticas cambian de look durante el programa.' : 'El plató de siempre. Prueba también el «Plató virtual».';
+  box.appendChild(n); return box;
+}
 
 /** Opciones › Público: sonido (sí/no + volumen) y si se ve el público en las gradas */
 function opcionesPublico(tog: (label: string, k: 'publico', vk: 'publicoVol', id?: string) => HTMLElement) {
@@ -379,10 +403,11 @@ async function startMode(mode: string, sub?: any) {
   const s = new Session(); session = s;
   menuMusic = false; resetScene(); $('menu').classList.add('hidden'); $('topbar').classList.remove('hidden');
   const c: Ctx = { eng, hud, st, panel, s };
+  eng.lookEvent(mode === 'entrenamiento' ? 'entrenamiento' : mode === 'explorar' ? 'blanco' : 'normal');
   try {
     if (mode === 'programa') {
       const r = await new Programa(c).run();
-      hud.score(`${r.line}<br><small>Duelos ganados: ${r.res === 'perdido' ? Math.max(0, r.rodadas - 1) : 8} de 8</small>`, true);
+      eng.lookEvent('outro'); hud.score(`${r.line}<br><small>Duelos ganados: ${r.res === 'perdido' ? Math.max(0, r.rodadas - 1) : 8} de 8</small>`, true);
       hud.actions([{ label: 'Jugar otra vez', cls: 'gold', fn: () => startMode('programa') }, { label: 'Menú', fn: () => stopMode() }]);
       eng.startOrbit(new THREE.Vector3(0, 0, 0), 10.8, 5, 0, 0.08, 1);
       audio.playMusic('Trilha', true, 0.5);

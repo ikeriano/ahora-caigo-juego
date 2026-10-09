@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LightRig } from './lights';
-import { Studio, TOP } from './set3d';
+import { Studio, TOP, PLATO } from './set3d';
+import type { LookId } from './plato-virtual';
 import { Theme } from './themes';
 import { Person, makeMannequin, makeHost, animatePerson } from './people';
 import { Audience } from './audience';
@@ -51,6 +52,7 @@ export class Engine {
   buildLights() {
     const prev = this.lights; const q = this.quality === 'baja' || this.quality === 'media' || this.quality === 'alta' ? this.quality : 'media';
     const r = new LightRig(this.theme, q, prev || undefined); prev?.dispose();
+    r.onEvent = (e) => this.lookEvent(e);
     r.followTarget = () => this.player ? this.player.root.position.clone().setY(this.player.root.position.y + 1.2) : null;
     this.lights = r; this.scene.add(r.root); this.onLights?.(r);
   }
@@ -75,9 +77,9 @@ export class Engine {
     if (this.host) this.scene.remove(this.host.root);
     this.theme = th;
     this.studio = new Studio(th, this.logoUrl, isMobile);
-    this.scene.add(this.studio.root);
+    this.scene.add(this.studio.root); this.applyLook();
     this.scene.background = new THREE.Color(th.bg);
-    this.scene.fog = new THREE.FogExp2(th.fog, 0.028);
+    this.scene.fog = new THREE.FogExp2(th.fog, this.fogDensity());
     this.player = makeMannequin({ shirt: 0xf3b21a }); this.scene.add(this.player.root);
     this.buildLights();
     this.buildAudience();
@@ -102,12 +104,22 @@ export class Engine {
   setGoldSet(on: boolean) {
     if (on === this.gold || !this.studio) return;
     this.gold = on;
-    const th: Theme = on ? { ...this.theme, wallA: '#5a2200', wallB: '#e0820c', chevA: '#fff0a8', chevB: '#ffb21a', glow: 0xffb21a, accent: 0xffe08a, fog: 0x140800, bg: 0x0a0400 } : this.theme;
+    const th: Theme = on ? { ...this.theme, wallA: '#5a2200', wallB: '#e0820c', chevA: '#fff0a8', chevB: '#ffb21a', glow: 0xffb21a, accent: 0xffe08a, fog: 0x140800, bg: 0x0a0400, gold: true } : this.theme;
     const cols = this.studio.holes.map(h => h.activeMat.color.getHex()); const st = this.studio.holes.map(h => [h.open, h.target]);
     this.scene.remove(this.studio.root); dispose(this.studio.root);
-    this.studio = new Studio(th, this.logoUrl, isMobile); this.scene.add(this.studio.root);
+    this.studio = new Studio(th, this.logoUrl, isMobile); this.scene.add(this.studio.root); this.applyLook();
     this.studio.holes.forEach((h, i) => { this.studio.setHoleColor(i, cols[i] ?? 0xffffff); h.open = st[i]?.[0] ?? 0; h.target = st[i]?.[1] ?? 0; });
-    this.scene.background = new THREE.Color(th.bg); this.scene.fog = new THREE.FogExp2(th.fog, 0.028);
+    this.scene.background = new THREE.Color(th.bg); this.scene.fog = new THREE.FogExp2(th.fog, this.fogDensity());
+  }
+
+  /** Luces del plató virtual: 'auto' (cambian con el programa) o un look fijo elegido en Opciones */
+  platoLuz: 'auto' | LookId = 'auto'; autoLook: LookId = 'morado';
+  fogDensity() { return PLATO === 'virtual' ? 0.008 : 0.028; }
+  applyLook() { this.studio?.setLook(this.platoLuz === 'auto' ? this.autoLook : this.platoLuz); }
+  /** look automático según el momento del programa (lo llaman los eventos de luces) */
+  lookEvent(e: string) {
+    const m: Record<string, LookId> = { intro: 'cian', final: 'cian', ganador: 'cian', outro: 'blanco', eleccion: 'morado', duelo: 'morado', menu: 'cian', entrenamiento: 'blanco', blanco: 'blanco', normal: 'morado' };
+    const l = m[e]; if (!l || l === this.autoLook) return; this.autoLook = l; this.applyLook();
   }
 
   resetPositions() {

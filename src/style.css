@@ -373,3 +373,7 @@ body.kb-open #duelBar { top: 2px; transform: translateX(-50%) scale(.85); transf
 #leyendoBadge { position: absolute; left: 10px; top: 118px; z-index: 30; pointer-events: none; padding: 4px 10px; border-radius: 12px; background: rgba(5,15,50,.78); border: 2px solid #ffd23a; color: #ffe9a8; font: 700 12px Arial, Roboto, sans-serif; opacity: 0; transform: translateX(-8px); transition: opacity .2s, transform .2s; }
 #leyendoBadge.on { opacity: 1; transform: none; animation: leyPulse 1.2s ease-in-out infinite; }
 @keyframes leyPulse { 50% { border-color: #ff9a1f; } }
+/* v1.6: Opciones › Plató (luces del plató virtual en su propia línea de botones) */
+#menu #rowPlatoLuz { flex-wrap: wrap; }
+#menu #rowPlatoLuz label { flex-basis: 100%; }
+#menu #rowPlatoLuz .tbtn { flex: 1; min-width: 0; }

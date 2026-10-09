@@ -90,7 +90,7 @@ export async function tarjetaPrueba(c: Ctx, id: PruebaId) {
   const cv = pruebaCanvas(P.titulo); const tex = canvasTex(640, 430, g => g.drawImage(cv, 0, 0));
   const mats = eng.studio.screenMats; const old = mats.map(m => m.map);
   mats.forEach(m => { m.map = tex; m.needsUpdate = true; });
-  eng.cut(V(0, 3.1, -3.2), V(0, 3.4, -11.6)); eng.glide(V(0, 3.3, -5.6), V(0, 3.5, -11.6), 2.6);
+  { const f = eng.studio.screenFocus; eng.cut(V(0, f.y - 0.35, f.z + 8.4), V(0, f.y - 0.05, f.z)); eng.glide(V(0, f.y - 0.15, f.z + 6.0), V(0, f.y + 0.05, f.z), 2.6); }
   const ov = document.createElement('div'); ov.id = 'pruebaCard'; ov.appendChild(cv); document.getElementById('hud')!.appendChild(ov);
   audio.play('Moeda@ContagemDuelos'); W.__prueba = { id, titulo: P.titulo };
   let done = false; hud.say(P.dicho, 2600).then(() => { done = true; });
