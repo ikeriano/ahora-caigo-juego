@@ -25,6 +25,8 @@ import { isMobile } from './engine';
 import { gesture } from './people';
 import { initCustomAudio, customInfo, setCustomAudio, clearCustomAudio, customReady, CUSTOM } from './customaudio';
 import { cabOpts } from './intro';
+import { initGallina, hayCanciones, guardarCancion, canciones } from './gallina';
+import { opcionesGallina, pantallaGallina } from './gallina-ui';
 import { crowd, estimateBeat } from './crowd';
 import { publico, publicoLog } from './publico';
 
@@ -37,7 +39,7 @@ let originales = localStorage.getItem('ac_orig') === '1';
 let opts: Opts;
 
 async function boot() {
-  await loadManifest(); initAudio(); crowd.init(); await voice.load(); lector.init(); initCustomAudio();
+  await loadManifest(); initAudio(); crowd.init(); await voice.load(); lector.init(); initCustomAudio(); void initGallina();
   eng = new Engine($('c3d') as HTMLCanvasElement, imgUrl(costume('Menu', 1).f)); publico.bind(eng);
   { const o0 = loadOpts(isMobile ? 'media' : 'alta'); eng.showAudience = o0.gradas; const pq = q.get('plato'); setPlato(pq === 'virtual' || pq === 'clasico' ? pq : o0.plato); eng.platoLuz = (q.get('luz') as any) || o0.platoLuz; }
   eng.setTheme(themeById(themeId));
@@ -53,7 +55,7 @@ async function boot() {
     return [...out.values(), ...lineasLectura()];
   };
   (window as any).__voces = VOCES; (window as any).__planPruebas = planPruebas;
-  Object.assign(window as any, { __cons: cons, __eng: eng, __hud: hud, __st: st, __panel: panel, THREE, __startMode: startMode, __menu: showMenu, __allLines: allLines, __voice: voice, __hashText: hashText, __audio: audio, __custom: { setCustomAudio, clearCustomAudio, customInfo, customReady }, __publico: publico, __crowd: crowd, __lector: lector, __lineasLectura: lineasLectura, __hablado: hablado, __publicoLog: publicoLog, __estimateBeat: estimateBeat });
+  Object.assign(window as any, { __cons: cons, __eng: eng, __hud: hud, __st: st, __panel: panel, THREE, __startMode: startMode, __menu: showMenu, __allLines: allLines, __voice: voice, __hashText: hashText, __audio: audio, __custom: { setCustomAudio, clearCustomAudio, customInfo, customReady }, __gallinaApi: { guardarCancion, canciones, initGallina }, __publico: publico, __crowd: crowd, __lector: lector, __lineasLectura: lineasLectura, __hablado: hablado, __publicoLog: publicoLog, __estimateBeat: estimateBeat });
   $('btnMenu').onclick = (e) => { e.stopPropagation(); if (session) { if (confirm('¿Volver al menú? Se perderá la partida.')) stopMode(); } else showMenu('main'); };
   const lui = setupLightsUI(eng);
   $('btnLuces').onclick = (e) => { e.stopPropagation(); lui.toggle(); };
@@ -74,7 +76,7 @@ async function boot() {
 }
 
 // ------------------------------------------------------------------ MENÚS
-type Screen = 'title' | 'main' | 'play' | 'train' | 'options' | 'help' | 'credits' | 'concursantes';
+type Screen = 'title' | 'main' | 'play' | 'train' | 'options' | 'help' | 'credits' | 'concursantes' | 'gallina';
 const esc = (t: string) => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as any)[c]);
 let screen: Screen = 'title';
 const isApk = !!(window as any).AndroidKb || /; wv\)/.test(navigator.userAgent);
@@ -147,11 +149,12 @@ function showMenu(sc: Screen = 'main') {
       T('duelo', 'Duelo contra un oponente', 'Por turnos, cada uno con su reloj, con PASAR', 'gold'),
       T('pruebas', 'Pruebas con reloj', '30 segundos por pregunta'),
       T('sintiempo', 'Pruebas sin tiempo', 'Tómatelo con calma'),
-      T('gallina', 'Palabra gallina', 'Las preguntas especiales del duelo 5'),
+      T('gallina', 'Palabra gallina', hayCanciones() ? 'Con tus canciones: completa la letra' : 'Las preguntas especiales del duelo 5'),
       T('entretres', 'Entre tres', 'Tres respuestas y 5 segundos, contra un oponente'),
       T('adivina', 'Adivina', 'Pistas una a una: ¡pulsa «LO SÉ»!'),
       T('dameletra', '¡Dame letra!', 'Pide letras y di la frase entera en 10 segundos'),
       T('sino', '¿Sí o no?', 'Una pregunta cada uno, 5 segundos: ¡SÍ o NO!'),
+      T('vayalio', '¡Vaya lío!', 'Letras revueltas: ordena la palabra de la definición'),
       T('eleccion', 'Elección del central', 'El más rápido con la tableta'),
       T('final', 'Juego final', '10 preguntas en 2 minutos'),
       T('huellas', 'Huellas y moneda', 'Elige huellas y prueba la moneda'),
@@ -188,9 +191,12 @@ function showMenu(sc: Screen = 'main') {
     const fb = document.createElement('button'); fb.className = 'tbtn' + (document.fullscreenElement ? ' sel' : ''); fb.textContent = document.fullscreenElement ? 'Salir' : 'Activar';
     fb.onclick = async (e) => { e.stopPropagation(); await toggleFullscreen(); setTimeout(() => showMenu('options'), 300); }; f.appendChild(fb);
     if (isApk) fb.disabled = true, fb.textContent = 'Siempre (app)';
-    col.append(opcionesPlato());
+    col.append(opcionesPlato(), opcionesGallina(() => showMenu('gallina')));
     const info = document.createElement('p'); info.className = 'mtext'; info.textContent = `Rendimiento actual: ${Math.round(eng.fps)} fps. Si el juego va lento en tu móvil, elige calidad «Baja».`;
     col.append(q, f, info, backBtn('main'));
+  } else if (sc === 'gallina') {
+    col.classList.add('opts'); col.appendChild(h2('Palabra gallina'));
+    pantallaGallina(col, backBtn('options'), () => showMenu('gallina'));
   } else if (sc === 'concursantes') {
     col.classList.add('opts'); col.appendChild(h2('Concursantes')); pantallaConcursantes(col);
   } else if (sc === 'help') {
@@ -389,7 +395,7 @@ function back(): boolean {
   if (!$('classicWrap').classList.contains('hidden')) { ($('classicBack') as HTMLButtonElement).click(); return true; }
   document.querySelector('#menu .modal')?.remove();
   if (session) { stopMode(); return true; }
-  const up: Record<Screen, Screen | null> = { title: null, main: 'title', play: 'main', train: 'play', options: 'main', help: 'main', credits: 'main', concursantes: 'options' };
+  const up: Record<Screen, Screen | null> = { title: null, main: 'title', play: 'main', train: 'play', options: 'main', help: 'main', credits: 'main', concursantes: 'options', gallina: 'options' };
   const to = up[screen]; if (!to) return false; showMenu(to); return true;
 }
 (window as any).__back = back;

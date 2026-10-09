@@ -9,10 +9,10 @@ import { L, fill } from './lines';
 import { duelo1v1 } from './duelo';
 import { showVidas } from './prueba';
 import { publico } from './publico';
-import { lector, textoPregunta } from './lectura';
+import { lector, leerPregunta, textoPregunta } from './lectura';
 import { PruebaId, tarjetaPrueba, jugarPrueba, eleccionCentral } from './pruebas';
 
-export type TrainKind = 'pruebas' | 'sintiempo' | 'gallina' | 'final' | 'huellas' | 'duelo' | 'entretres' | 'adivina' | 'dameletra' | 'sino' | 'eleccion';
+export type TrainKind = 'pruebas' | 'sintiempo' | 'gallina' | 'final' | 'huellas' | 'duelo' | 'entretres' | 'adivina' | 'dameletra' | 'sino' | 'vayalio' | 'eleccion';
 
 async function colocar(c: Ctx) {
   const e = c.eng; e.resetPositions(); e.walkMode(false);
@@ -28,7 +28,7 @@ export async function entrenamiento(c: Ctx, kind: TrainKind, originales: boolean
   const upd = () => hud.score(`✔ ${ok} &nbsp; ✘ ${ko} &nbsp; ⏭ ${pas}`);
   if (kind === 'huellas') return huellas(c);
   if (kind === 'duelo') return dueloEntreno(c, P);
-  if (kind === 'entretres' || kind === 'adivina' || kind === 'dameletra' || kind === 'sino') return dueloEntreno(c, P, kind);
+  if (kind === 'entretres' || kind === 'adivina' || kind === 'dameletra' || kind === 'sino' || kind === 'vayalio') return dueloEntreno(c, P, kind);
   if (kind === 'eleccion') {
     eng.player.root.position.set(0.4, 0, 6.6); eng.face(eng.player, eng.host.root.position);
     const r = await eleccionCentral(c);
@@ -67,7 +67,7 @@ export async function entrenamiento(c: Ctx, kind: TrainKind, originales: boolean
       const q = P.bank.next('normal'); panel.setQuestion(q);
       let res: any = null; panel.showPasa(true, () => { res = res || 'pasa'; });
       panel.ask().then(v => { if (v) res = res || 'ok'; });
-      lector.leer(textoPregunta(q), { delay: 300 });
+      leerPregunta(q, { delay: 300 });
       await s.until(() => !!res); lector.stop(); panel.showPasa(false); panel.stopInput();
       if (res === 'ok') { audio.play('QuemFicaEmPé-Acerto'); publico.aplauso(2, 0.6); hud.toast('¡CORRECTO!', 1100); }
       await panel.reveal(); r = res;

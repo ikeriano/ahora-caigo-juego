@@ -175,6 +175,11 @@ function opciones(op: string[]) {
 }
 
 // ------------------------------------------------------------------ qué se lee
+/** Lee una pregunta: si es una «Palabra gallina» con canción del jugador, suena la canción hasta el corte */
+export function leerPregunta(q: Q, o: { rapida?: boolean; delay?: number } = {}): Lectura {
+  if (q.cancion) { lector.stop(); const L = leerCancion(q); lector.cur = L; return L; }
+  return lector.leer(textoPregunta(q), o);
+}
 export const textoPregunta = (q: Q): string | null => {
   if (q.gallina) return GALLINA_LECTURA;
   if (q.kind === 'img') return SB3_TEXTOS[(q.costume || 0) - 1] || null;
@@ -189,6 +194,7 @@ export function lineasLectura(): { t: string; h: string; d: 'q' }[] {
   for (const th of THEMES) if (hasThemePool(th.id)) themeQuestions(th.id).forEach(q => q.text && raw.push(q.text));
   ENTRE_TRES.forEach(q => raw.push(textoEntreTres(q)));
   ADIVINA.forEach(a => { raw.push(textoCategoria(a.cat)); a.pistas.forEach(p => raw.push(p)); });
+  VAYA_LIO.forEach(v => raw.push(v[0]));
   SI_NO.forEach(q => raw.push(q[0])); CENTRAL.forEach(q => raw.push(q[0]));
   [...new Set(DAME_LETRA.map(d => d[0]))].forEach(c => raw.push(textoCategoria(c)));
   const out = new Map<string, { t: string; h: string; d: 'q' }>();
@@ -210,7 +216,7 @@ class Lector {
   on = true; rapida = false;
   index: Record<string, number> | null = null; private idxP: Promise<void> | null = null;
   private el: HTMLAudioElement | null = null; private blobs = new Map<string, Promise<string | null>>();
-  private cur: Lectura | null = null;
+  cur: Lectura | null = null;
   /** log para pruebas */ log: string[] = []; ultimo = '';
   get leyendo() { return !!this.cur?.leyendo; }
   init() { return this.idxP ||= fetch(`${BASE}voz/q/index.json`).then(r => r.json()).then(j => { this.index = j; }).catch(() => { this.index = {}; }); }
@@ -258,3 +264,5 @@ class Lector {
   stop() { const c = this.cur; this.cur = null; c?.stop(); }
 }
 export const lector = new Lector();
+import { leerCancion } from './gallina';
+import { VAYA_LIO } from './vayalio';

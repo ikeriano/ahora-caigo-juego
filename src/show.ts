@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { lector, textoPregunta } from './lectura';
+import { lector, leerPregunta, textoPregunta } from './lectura';
 import type { Engine } from './engine';
 import { Hud, Session, fmt } from './hud';
 import { Stage2D } from './stage2d';
@@ -309,12 +309,13 @@ export class Programa {
     if (!final && !this.noVidas) showVidas(this.vidas, !!this.vidaExtra);
     let result = null as any as ('ok' | 'pasa' | 'tiempo' | null);
     panel.showPasa(final || this.vidas > 0, () => { if (!result) { result = 'pasa'; onPasa?.(); } }, 'PASAR ⏭');
-    if (q.gallina) audio.playMusic('SuspenseDuelo', true);
+    if (q.gallina && !q.cancion) audio.playMusic('SuspenseDuelo', true);
     panel.ask().then(ok => { if (ok && !result) result = 'ok'; });
     // el presentador lee la pregunta. En el Juego Final lee deprisa y el reloj de 2:00 NO se para (como en el programa);
     // en el resto el reloj arranca al terminar la lectura (se puede escribir mientras lee)
-    const lect = lector.leer(textoPregunta(q), clock ? { rapida: true, delay: 150 } : { delay: 300 });
+    const lect = leerPregunta(q, clock ? { rapida: true, delay: 150 } : { delay: 300 });
     (window as any).__lect = lect;
+    if (q.cancion) lect.done.then(() => { if (!result) audio.playMusic('SuspenseDuelo', true); });
     // reloj (como Relogio2: espera 1 s y resta 1 cada 0,98 s)
     let stopClock = () => { };
     if (!clock) {

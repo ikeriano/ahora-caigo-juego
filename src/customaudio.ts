@@ -11,14 +11,14 @@ const KEEP_SEC = 75;                 // solo se decodifican los primeros 75 s (c
 export interface CustomInfo { name: string; size: number; type: string }
 interface Rec extends CustomInfo { blob: Blob; date: number }
 
-function db(): Promise<IDBDatabase> {
+export function db(): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
     const r = indexedDB.open(DB, 1);
     r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains(STORE)) r.result.createObjectStore(STORE); };
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   });
 }
-async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+export async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   const d = await db();
   return new Promise((res, rej) => { const t = d.transaction(STORE, mode); const rq = fn(t.objectStore(STORE)); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); });
 }

@@ -15,7 +15,7 @@ import { gesture } from './people';
 import { L, pick, fraseNum } from './lines';
 import { cons } from './concursantes';
 import { publico } from './publico';
-import { lector, textoPregunta, type Lectura } from './lectura';
+import { lector, leerPregunta, textoPregunta, type Lectura } from './lectura';
 
 export type DuelResult = 'win' | 'lose';
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
@@ -49,7 +49,7 @@ function duelBar(opp: number): Bar {
 }
 
 /** Juega el duelo y devuelve quién gana. No hace las caídas (las hace Programa.duelo) */
-export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean } = {}): Promise<DuelResult> {
+export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean; gen?: () => Q } = {}): Promise<DuelResult> {
   const { eng, hud, panel, st, s } = P.c;
   const bot = eng.opps[opp - 1];
   const W = window as any;
@@ -60,7 +60,7 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
   let running = false;
   let lect: Lectura | null = null;
   /** el presentador lee la pregunta (no se relee la pregunta pasada con comodín) */
-  const leer = (q: Q) => { lect = lector.leer(textoPregunta(q), { delay: 350 }); W.__duel.lecturas++; return lect; };
+  const leer = (q: Q) => { lect = leerPregunta(q, { delay: 350 }); W.__duel.lecturas++; return lect; };
   const bar = duelBar(opp); bar.set(turn, clocks.me, clocks.bot);
   W.__duel = { clocks, get turn() { return turn; }, get running() { return running; }, skill: k, opp, log: [] as string[], lecturas: 0, get leyendo() { return !!lect?.leyendo; } };
   const log = (t: string) => W.__duel.log.push(t);
@@ -78,7 +78,7 @@ export async function duelo1v1(P: Programa, opp: number, o: { training?: boolean
   }, 50);
   /** espera sec segundos de juego mientras corre el reloj del bot; false si se le acaba el tiempo */
   const botWait = async (sec: number) => { const t0 = performance.now(); await s.until(() => clocks.bot <= 0 || performance.now() - t0 >= sec * 1000); return clocks.bot > 0; };
-  const newQ = (): Q => P.bank.next(o.training ? 'normal' : (P.rodadas || 'normal') as any);
+  const newQ = (): Q => o.gen ? o.gen() : P.bank.next(o.training ? 'normal' : (P.rodadas || 'normal') as any);
 
   /** Turno del bot. ok = acierta; tiempo = se le acaba el reloj */
   const botTurn = async (q: Q, pasada = false): Promise<'ok' | 'tiempo'> => {
