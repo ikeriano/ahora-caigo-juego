@@ -76,7 +76,7 @@ if (part === 'programa') {
   await p.goto(base + '?nosw&screen=play', { waitUntil: 'load' })
   await until(() => !!(window.__eng && window.__eng.audience))
   await ev(() => { localStorage.setItem('ac3d_concursantes', JSON.stringify({ central: 'Iker', profesion: 'youtuber', rivales: ['Paco', 'Lola', 'Ramoncín'], presentaciones: true })); window.__cons.reload() })
-  await ev(() => { window.__botForce = 'fail'; window.__botClock = 4; window.__presArg = true; window.__conEleccion = true; window.__elecBots = 'lento' })
+  await ev(() => { window.__botForce = 'fail'; window.__noCabVideo = true; window.__noMono = true; window.__botClock = 4; window.__presArg = true; window.__conEleccion = true; window.__elecBots = 'lento' })
   await ev(() => { void window.__startMode('programa') })
   // cabecera: aplausos al ritmo + planos de dron con público
   await until(() => window.__publicoLog?.some(l => /ritmo/.test(l)), 40000)
@@ -318,7 +318,7 @@ if (part === 'presentador') {
   await shot(PS + 'historia-subtitulos.png')
   // ---- programa: bocadillos y presentaciones
   await p.goto(base + '?nosw&screen=play', { waitUntil: 'load' }); await until(() => !!(window.__eng && window.__eng.audience))
-  await ev(() => { window.__noEleccion = true; window.__presArg = false; void window.__startMode('programa') })
+  await ev(() => { window.__noEleccion = true; window.__noCabVideo = true; window.__noMono = true; window.__presArg = false; void window.__startMode('programa') })
   await sleep(2500); await p.click('#btnSkip')
   await until(() => window.__pres && window.__pres.lineas[0]?.startsWith('host') && !window.__pres.done, 90000); await sleep(700)
   const b1 = await bubble(); log('bocadillo', JSON.stringify(b1))
