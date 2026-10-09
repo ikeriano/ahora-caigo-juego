@@ -3,10 +3,12 @@ export interface Opts { music: boolean; musicVol: number; sfx: boolean; sfxVol: 
   /** sonido del público (aplausos, vítores, «oooh») y su volumen */ publico: boolean; publicoVol: number;
   /** público visible en las gradas */ gradas: boolean;
   /** el presentador lee las preguntas en voz alta y su velocidad */ lee: boolean; leeVel: 'normal' | 'rapida';
-  /** plató (v1.6): el clásico o el plató virtual, y las luces del virtual */ plato: 'clasico' | 'virtual'; platoLuz: 'auto' | 'blanco' | 'morado' | 'cian' }
+  /** plató (v1.6): el clásico o el plató virtual, y las luces del virtual */ plato: 'clasico' | 'virtual'; platoLuz: 'auto' | 'blanco' | 'morado' | 'cian';
+  /** cabecera del Programa: el vídeo de Iker o la cabecera 3D */ cabecera: 'iker' | 'plato3d';
+  /** monólogo cómico del presentador tras la cabecera */ monologo: boolean }
 const KEY = 'ac3d_opts';
 export function loadOpts(def: Opts['quality']): Opts {
-  const d: Opts = { music: true, musicVol: 0.8, sfx: true, sfxVol: 1, quality: def, voz: true, chistes: true, publico: true, publicoVol: 0.8, gradas: true, lee: true, leeVel: 'normal', plato: 'clasico', platoLuz: 'auto' };
+  const d: Opts = { music: true, musicVol: 0.8, sfx: true, sfxVol: 1, quality: def, voz: true, chistes: true, publico: true, publicoVol: 0.8, gradas: true, lee: true, leeVel: 'normal', plato: 'clasico', platoLuz: 'auto', cabecera: 'iker', monologo: true };
   try { return { ...d, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return d; }
 }
 export function saveOpts(o: Opts) { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch { } }

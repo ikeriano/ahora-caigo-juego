@@ -24,6 +24,7 @@ import { setupLightsUI } from './lightsui';
 import { isMobile } from './engine';
 import { gesture } from './people';
 import { initCustomAudio, customInfo, setCustomAudio, clearCustomAudio, customReady, CUSTOM } from './customaudio';
+import { cabOpts } from './intro';
 import { crowd, estimateBeat } from './crowd';
 import { publico, publicoLog } from './publico';
 
@@ -170,7 +171,7 @@ function showMenu(sc: Screen = 'main') {
       sl.oninput = () => { opts[vk] = +sl.value / 100; applyOpts(); }; sl.onchange = () => { if (k === 'publico') publico.aplauso(1.5, 0.8); else audio.play('Tecla'); };
       const l = document.createElement('label'); l.textContent = label; r.append(l, b, sl); return r;
     };
-    col.append(tog('🎵 Música', 'music', 'musicVol'), musicaCabecera(), tog('🔊 Efectos', 'sfx', 'sfxVol'), opcionesPublico(tog));
+    col.append(tog('🎵 Música', 'music', 'musicVol'), opcionesCabecera(), musicaCabecera(), tog('🔊 Efectos', 'sfx', 'sfxVol'), opcionesPublico(tog));
     const onoff = (label: string, k: 'voz' | 'chistes' | 'lee') => {
       const r = document.createElement('div'); r.className = 'orow'; const l = document.createElement('label'); l.textContent = label;
       const b = document.createElement('button'); const upd = () => { b.className = 'tbtn' + (opts[k] ? ' sel' : ''); b.textContent = opts[k] ? 'Sí' : 'No'; };
@@ -275,7 +276,18 @@ async function toggleFullscreen() {
     else { await document.documentElement.requestFullscreen({ navigationUI: 'hide' } as any); try { await (screen as any).orientation?.lock?.('landscape'); } catch { } }
   } catch { hud.toast('Tu navegador no permite pantalla completa aquí', 2500); }
 }
-function applyOpts() { lector.on = opts.lee; lector.rapida = opts.leeVel === 'rapida'; if (!opts.lee || !opts.voz) lector.stop(); audio.setLevels(opts); crowd.setLevel(opts.publico, opts.publicoVol); voice.enabled = opts.voz; voice.jokes = opts.chistes; if (eng.quality !== opts.quality) eng.setQuality(opts.quality); eng.setAudienceVisible(opts.gradas); saveOpts(opts); }
+function applyOpts() { cabOpts.video = opts.cabecera === 'iker'; cabOpts.vol = opts.musicVol; cabOpts.mute = !opts.music; lector.on = opts.lee; lector.rapida = opts.leeVel === 'rapida'; if (!opts.lee || !opts.voz) lector.stop(); audio.setLevels(opts); crowd.setLevel(opts.publico, opts.publicoVol); voice.enabled = opts.voz; voice.jokes = opts.chistes; if (eng.quality !== opts.quality) eng.setQuality(opts.quality); eng.setAudienceVisible(opts.gradas); saveOpts(opts); }
+
+/** Opciones › Cabecera (v1.6): el vídeo de Iker o la cabecera 3D en el plató */
+function opcionesCabecera() {
+  const r = document.createElement('div'); r.className = 'orow orow-wrap'; r.id = 'rowCabecera'; const l = document.createElement('label'); l.textContent = '🎬 Cabecera'; r.appendChild(l);
+  for (const [v, t] of [['iker', 'La de Iker (vídeo)'], ['plato3d', 'Plató 3D']] as const) {
+    const b = document.createElement('button'); b.className = 'tbtn' + (opts.cabecera === v ? ' sel' : ''); b.textContent = t; b.dataset.v = v;
+    b.onclick = (e) => { e.stopPropagation(); audio.play('Tecla'); opts.cabecera = v; applyOpts(); r.querySelectorAll('button').forEach(x => x.classList.toggle('sel', (x as HTMLElement).dataset.v === v)); };
+    r.appendChild(b);
+  }
+  return r;
+}
 
 /** Opciones › Plató (v1.6): el clásico o el plató virtual (y el look de luces del virtual) */
 function opcionesPlato() {

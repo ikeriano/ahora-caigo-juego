@@ -96,7 +96,7 @@ public class MainActivity extends Activity {
             mime.put("json", "application/json"); mime.put("webmanifest", "application/manifest+json");
             mime.put("png", "image/png"); mime.put("webp", "image/webp"); mime.put("jpg", "image/jpeg");
             mime.put("svg", "image/svg+xml"); mime.put("mp3", "audio/mpeg"); mime.put("wav", "audio/wav");
-            mime.put("woff2", "font/woff2"); mime.put("ico", "image/x-icon");
+            mime.put("woff2", "font/woff2"); mime.put("mp4", "video/mp4"); mime.put("ico", "image/x-icon");
         }
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
@@ -105,9 +105,34 @@ public class MainActivity extends Activity {
             String path = u.getPath();
             if (path == null || path.equals("/") || path.isEmpty()) path = "/index.html";
             try {
-                InputStream in = getAssets().open("www" + Uri.decode(path));
                 String ext = path.substring(path.lastIndexOf('.') + 1).toLowerCase();
                 String m = mime.containsKey(ext) ? mime.get(ext) : "application/octet-stream";
+                String range = req.getRequestHeaders() != null ? req.getRequestHeaders().get("Range") : null;
+                if (range == null && req.getRequestHeaders() != null) range = req.getRequestHeaders().get("range");
+                if ("mp4".equals(ext)) {
+                    // vídeo de la cabecera: el reproductor pide trozos (Range) -> 206 Partial Content
+                    long len;
+                    try (android.content.res.AssetFileDescriptor fd = getAssets().openFd("www" + Uri.decode(path))) { len = fd.getLength(); }
+                    long a = 0, b = len - 1;
+                    if (range != null && range.startsWith("bytes=")) {
+                        String[] p = range.substring(6).split("-", 2);
+                        try { if (!p[0].isEmpty()) a = Long.parseLong(p[0].trim()); if (p.length > 1 && !p[1].trim().isEmpty()) b = Math.min(len - 1, Long.parseLong(p[1].trim())); } catch (NumberFormatException ignored) { }
+                    }
+                    InputStream vin = getAssets().open("www" + Uri.decode(path));
+                    long skip = a; while (skip > 0) { long k = vin.skip(skip); if (k <= 0) break; skip -= k; }
+                    final long n = b - a + 1; final InputStream src = vin;
+                    InputStream lim = new InputStream() {
+                        long left = n;
+                        @Override public int read() throws java.io.IOException { if (left <= 0) return -1; int c = src.read(); if (c >= 0) left--; return c; }
+                        @Override public int read(byte[] buf, int off, int l) throws java.io.IOException { if (left <= 0) return -1; int c = src.read(buf, off, (int) Math.min(l, left)); if (c > 0) left -= c; return c; }
+                        @Override public void close() throws java.io.IOException { src.close(); }
+                    };
+                    Map<String, String> vh = new HashMap<>();
+                    vh.put("Accept-Ranges", "bytes"); vh.put("Content-Length", String.valueOf(n)); vh.put("Access-Control-Allow-Origin", "*");
+                    if (range != null) vh.put("Content-Range", "bytes " + a + "-" + b + "/" + len);
+                    return new WebResourceResponse(m, null, range != null ? 206 : 200, range != null ? "Partial Content" : "OK", vh, lim);
+                }
+                InputStream in = getAssets().open("www" + Uri.decode(path));
                 WebResourceResponse r = new WebResourceResponse(m, m.startsWith("text") || m.endsWith("json") ? "utf-8" : null, in);
                 Map<String, String> h = new HashMap<>();
                 h.put("Access-Control-Allow-Origin", "*");

@@ -23,6 +23,6 @@ android {
             signingConfig signingConfigs.release
         }
     }
-    aaptOptions { noCompress 'mp3', 'webp', 'png' }
+    aaptOptions { noCompress 'mp3', 'webp', 'png', 'mp4' }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }

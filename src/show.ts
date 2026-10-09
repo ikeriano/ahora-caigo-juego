@@ -8,7 +8,7 @@ import { audio } from './assets';
 import { Bank, Q } from './questions';
 import { TOP } from './set3d';
 import { gesture } from './people';
-import { cabecera, despedida, CAB_MUSIC } from './intro';
+import { cabecera, despedida, CAB_MUSIC, cabOpts, cabeceraIker } from './intro';
 import { confettiBurst } from './decor';
 import { L, pick, fill } from './lines';
 import { Chistes, JokeCtx } from './jokes';
@@ -172,7 +172,7 @@ export class Programa {
     eng.resetPositions(); eng.opps.forEach(o => o.root.visible = true);
     // ---- CABECERA ----
     eng.lights?.event('intro');
-    await cabecera(eng, hud, s, !!eng.theme.festivo);
+    if (!(cabOpts.video && !(window as any).__noCabVideo && await cabeceraIker(hud, s))) await cabecera(eng, hud, s, !!eng.theme.festivo);
     hud.hashtag(eng.theme.hashtag || '#AhoraCaigo');
     // ---- el Presentador da la bienvenida (la sintonía termina por debajo) ----
     // la música de la cabecera (la del jugador o la del .sb3) se funde al terminar la cabecera
