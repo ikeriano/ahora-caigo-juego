@@ -142,9 +142,18 @@ export function animatePerson(p: Person, dt: number, speed: number) {
     else if (p.gestureType === 'aplaude') { const c = Math.abs(Math.sin(p.t * 14)); p.armL.rotation.x = -1.3 * k; p.armR.rotation.x = -1.3 * k; p.armL.rotation.z = (0.5 + c * 0.35) * k - 0.12; p.armR.rotation.z = -(0.5 + c * 0.35) * k + 0.12; }
     else if (p.gestureType === 'gracias') { p.armL.rotation.x = -1.1 * k; p.armR.rotation.x = -1.1 * k; p.armL.rotation.z = 0.75 * k; p.armR.rotation.z = -0.75 * k; p.body.rotation.x = 0.25 * k; }
     else if (p.gestureType === 'beso') { const ph = 1 - p.gesture / 1.6; p.armR.rotation.x = ph < 0.5 ? -2.2 * k : -1.6 * k; p.armR.rotation.z = ph < 0.5 ? -0.5 : 0.5 * k; }
+    // v1.6 (monólogos): gestos largos con su propia envolvente (entran y salen en 0,3 s)
+    else if (p.gestureType === 'telefono' || p.gestureType === 'baila' || p.gestureType === 'tropieza' || p.gestureType === 'gira' || p.gestureType === 'encoge') {
+      const tot = (p as any).gDur || 1; const e = Math.min(1, p.gesture * 3.3, (tot - p.gesture) * 3.3);
+      if (p.gestureType === 'telefono') { p.armL.rotation.x = -2.25 * e; p.armL.rotation.z = -0.12 + 0.95 * e; p.head.rotation.z = -0.18 * e; }
+      else if (p.gestureType === 'baila') { const b = Math.sin(p.t * 7); p.armL.rotation.x = (-2.4 + b * 0.5) * e; p.armR.rotation.x = (-2.4 - b * 0.5) * e; p.armL.rotation.z = (-0.12 - 0.4 * Math.max(0, b)) * e; p.armR.rotation.z = (0.12 + 0.4 * Math.max(0, -b)) * e; p.body.rotation.y = 0.35 * b * e; p.body.position.y = Math.abs(Math.sin(p.t * 7)) * 0.08 * e; p.legL.rotation.x = 0.35 * Math.max(0, b) * e; p.legR.rotation.x = 0.35 * Math.max(0, -b) * e; }
+      else if (p.gestureType === 'tropieza') { const ph = 1 - p.gesture / tot; const f = ph < 0.35 ? ph / 0.35 : Math.max(0, 1 - (ph - 0.35) / 0.65); p.body.rotation.x = 0.55 * f; p.armL.rotation.x = -1.6 * f + Math.sin(p.t * 20) * 0.5 * f; p.armR.rotation.x = -1.6 * f - Math.sin(p.t * 20) * 0.5 * f; p.armL.rotation.z = -0.12 - 0.6 * f; p.armR.rotation.z = 0.12 + 0.6 * f; p.legR.rotation.x = -0.6 * f; }
+      else if (p.gestureType === 'gira') { const ph = 1 - p.gesture / tot; p.body.rotation.y = ph * Math.PI * 2; p.armL.rotation.z = -0.12 - 1.2 * e; p.armR.rotation.z = 0.12 + 1.2 * e; }
+      else { p.armL.rotation.x = -0.6 * e; p.armR.rotation.x = -0.6 * e; p.armL.rotation.z = -0.12 - 0.5 * e; p.armR.rotation.z = 0.12 + 0.5 * e; p.head.rotation.z = 0.2 * Math.sin(p.t * 3) * e; }
+    }
     else if (p.gestureType === 'lamenta') { p.armL.rotation.x = -2.2 * k; p.armR.rotation.x = -2.2 * k; p.armL.rotation.z = 0.9 * k; p.armR.rotation.z = -0.9 * k; p.head.rotation.x = 0.3 * k; }
-    if (p.gesture === 0) { p.armL.rotation.z = -0.12; p.armR.rotation.z = 0.12; p.head.rotation.x = 0; p.body.rotation.x = 0; }
+    if (p.gesture === 0) { p.armL.rotation.z = -0.12; p.armR.rotation.z = 0.12; p.head.rotation.x = 0; p.head.rotation.z = 0; p.body.rotation.x = 0; p.body.rotation.y = 0; }
   }
   const hel = p.head.getObjectByName('helice'); if (hel) hel.rotation.y += dt * 12;
 }
-export function gesture(p: Person, type: string, dur = 1.6) { p.gestureType = type; p.gesture = dur; }
+export function gesture(p: Person, type: string, dur = 1.6) { p.gestureType = type; p.gesture = dur; (p as any).gDur = dur; }

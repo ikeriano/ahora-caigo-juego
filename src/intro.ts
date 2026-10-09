@@ -254,3 +254,43 @@ export async function despedida(eng: Engine, hud: Hud, main: Session, resultLine
   }); } finally { audio.stopMusic(0.8); document.body.classList.remove('outro'); document.getElementById('credits')?.classList.remove('fadeout'); }
   document.getElementById('finCard')?.remove(); hud.hideCredits(); eng.studio.holes[0].target = 0;
 }
+
+// ------------------------------------------------------------------ CABECERA DE IKER (vídeo, v1.6)
+/** Ajustes que vienen de Opciones (los pone main.ts) */
+export const cabOpts = { video: true, vol: 0.8, mute: false };
+export const CAB_VIDEO = `${import.meta.env.BASE_URL}cabecera/cabecera-iker.mp4`;
+/** La cabecera hecha por Iker: vídeo a pantalla completa con su audio. Se salta con un toque.
+ *  true = se ha visto (o saltado); false = no se pudo reproducir (entonces va la cabecera 3D) */
+export async function cabeceraIker(hud: Hud, main: Session): Promise<boolean> {
+  const W = window as any;
+  const wrap = document.createElement('div'); wrap.id = 'cabVideo';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:60;background:#000;display:flex;align-items:center;justify-content:center;cursor:pointer';
+  const v = document.createElement('video');
+  v.src = CAB_VIDEO; v.poster = `${import.meta.env.BASE_URL}cabecera/cabecera-iker.jpg`; v.preload = 'auto'; v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+  v.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000';
+  v.volume = Math.max(0, Math.min(1, cabOpts.vol)); v.muted = cabOpts.mute;
+  const tip = document.createElement('div'); tip.textContent = 'Toca para saltar ⏭';
+  tip.style.cssText = 'position:absolute;right:18px;bottom:16px;padding:6px 14px;border-radius:18px;background:#0008;color:#fff;font:600 15px system-ui;opacity:.85;pointer-events:none';
+  wrap.append(v, tip); document.body.appendChild(wrap);
+  W.__cabVideo = { estado: 'cargando', el: v };
+  let fin: (r: boolean) => void = () => { };
+  const done = new Promise<boolean>(r => { fin = r; });
+  let shown = false;
+  const end = (r: boolean, why: string) => { W.__cabVideo.estado = why; fin(r); };
+  wrap.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); end(true, 'saltado'); });
+  hud.skip(() => end(true, 'saltado'));
+  v.onended = () => end(true, 'terminado');
+  v.onerror = () => end(shown, 'error');
+  v.onplaying = () => { shown = true; W.__cabVideo.estado = 'reproduciendo'; };
+  // si se queda atascado sin arrancar en 6 s, cabecera 3D
+  const stall = setTimeout(() => { if (!shown) end(false, 'atascado'); }, 6000);
+  const watch = setInterval(() => { if (!main.alive) end(true, 'abort'); }, 100);
+  try { if (audio.ctx.state === 'suspended') await audio.ctx.resume(); } catch { }
+  v.play().catch(() => { v.muted = true; v.play().catch(() => end(false, 'sin-play')); });
+  const r = await done;
+  clearTimeout(stall); clearInterval(watch); hud.skip(null);
+  try { v.pause(); } catch { }
+  wrap.style.transition = 'opacity .35s'; wrap.style.opacity = '0'; setTimeout(() => { v.removeAttribute('src'); v.load(); wrap.remove(); }, 400);
+  main.check();
+  return r;
+}

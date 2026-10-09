@@ -66,7 +66,7 @@ export class Panel {
       this.st.show('Resposta', q.costume!, { z: 5, fade: 200 });
     } else {
       this.st.hide('Pergunta'); this.st.hide('Resposta');
-      const t = document.createElement('div'); t.className = 'ptxt';
+      const t = document.createElement('div'); t.className = 'ptxt' + (q.exact ? ' vlio' : '') + (q.cancion ? ' gall' : '');
       const p = document.createElement('div'); p.className = 'pq'; p.style.top = '72px'; p.textContent = q.text!;
       const bx = document.createElement('div'); bx.className = 'pboxes'; bx.style.top = '160px';
       const n = q.word!.length; const bw = Math.min(50, Math.floor(900 / n) - 6);
@@ -75,6 +75,7 @@ export class Panel {
         b.textContent = ch === ' ' ? '' : ch; if (ch !== ' ') { b.style.width = bw + 'px'; b.style.fontSize = Math.round(bw * 0.9) + 'px'; }
         bx.appendChild(b);
       });
+      if (q.cancion) { t.classList.add('escuchando'); const e = document.createElement('div'); e.className = 'gesc'; e.innerHTML = '🐔🎵 Escucha la canción…'; t.appendChild(e); }
       t.append(p, bx); t.style.zIndex = '4'; t.style.position = 'absolute'; t.style.inset = '0';
       this.box.appendChild(t); this.txt = t;
     }
@@ -84,7 +85,12 @@ export class Panel {
   /** "acerto": la casilla parpadea y se descubre la palabra */
   async reveal(flashMs = 200) {
     if (this.q?.kind === 'img') { this.st.hide('Resposta'); await sleep(100); this.st.show('Resposta', this.q.costume!, { z: 5 }); await sleep(100); this.st.hide('Resposta'); }
-    else this.txt?.querySelector('.pboxes')?.classList.add('reveal');
+    else {
+      const bx = this.txt?.querySelector('.pboxes');
+      // «¡Vaya lío!»: las casillas se reordenan y muestran la respuesta
+      if (bx && this.q?.answer) { const a = [...this.q.answer.toUpperCase()]; bx.querySelectorAll('.b').forEach((b, i) => { (b as HTMLElement).textContent = a[i] || ''; }); bx.classList.add('vl-ok'); }
+      bx?.classList.add('reveal');
+    }
     await sleep(flashMs);
   }
   /** Activa el teclado y espera a que se escriban tantas letras como faltan. true = correcto */
@@ -141,7 +147,7 @@ export class Panel {
     this.renderSlots(v);
     if (v.length === this.q.missing.length) {
       // Comprobación igual que el Scratch: cada letra escrita debe estar en "Painel"
-      const ok = [...v].every(ch => this.q!.missing.includes(ch));
+      const ok = this.q.exact ? v === this.q.exact : [...v].every(ch => this.q!.missing.includes(ch));
       this.input.value = '';
       if (ok) { this.renderSlots(v, 'ok'); const r = this.resolve; this.active = false; r?.(true); }
       else {

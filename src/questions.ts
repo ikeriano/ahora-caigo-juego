@@ -1,5 +1,6 @@
 import { M } from './assets';
 import type { ThemeId } from './themes';
+import { hayCanciones, gallinaQ } from './gallina';
 
 export interface Q {
   id: string; kind: 'img' | 'txt';
@@ -7,6 +8,10 @@ export interface Q {
   text?: string; word?: string; hidden?: boolean[];  // preguntas nuevas (mismo formato)
   missing: string[];           // letras que hay que escribir (como la lista "Painel" del Scratch)
   gallina?: boolean;
+  /** «¡Vaya lío!»: hay que escribir la respuesta ENTERA y en orden (exact, sin tildes); answer = cómo se escribe */
+  exact?: string; answer?: string;
+  /** «Palabra gallina» con canción del jugador: suena hasta el corte y luego se completa el hueco */
+  cancion?: { id: string; corte: number; desde: number };
 }
 export const norm = (s: string) => s.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z]/g, '');
 
@@ -109,10 +114,11 @@ export class Bank {
   private pick(pool: Q[]) { const free = pool.filter(q => !this.used.has(q.id)); if (!free.length) return null; const q = free[Math.floor(Math.random() * free.length)]; this.used.add(q.id); return q; }
   private sb3Range(a: number, b: number) { const r: Q[] = []; for (let i = a; i <= b; i++) r.push(sb3Question(i)); return r; }
   /** ¿la ronda 5 usa las «Palabra gallina» del Scratch? */
-  gallina5() { return !(!this.onlyOriginal && hasThemePool(this.theme as ThemeId)); }
+  gallina5() { return hayCanciones() || !(!this.onlyOriginal && hasThemePool(this.theme as ThemeId)); }
   /** ronda: 1..8 ; en la ronda 5 el Scratch usa las "Palabra gallina" (81-90) */
   next(ronda: number | 'FINAL' | 'normal' | 'gallina'): Q {
     const themed = !this.onlyOriginal && hasThemePool(this.theme as ThemeId);
+    if (ronda === 'gallina' || (ronda === 5 && (!themed || hayCanciones()))) { const u = gallinaQ(); if (u) return u; }
     if (ronda === 'gallina' || (ronda === 5 && !themed)) { const q = this.pick(this.sb3Range(81, 90)); if (q) return q; }
     if (themed) { const q = this.pick(themeQuestions(this.theme)); if (q) return q; if (this.theme === 'ninos') { this.used.forEach(id => id.startsWith('ninos') && this.used.delete(id)); const q2 = this.pick(themeQuestions('ninos')); if (q2) return q2; } }
     return this.pick(this.sb3Range(1, 80)) || (this.used.clear(), this.pick(this.sb3Range(1, 80))!);

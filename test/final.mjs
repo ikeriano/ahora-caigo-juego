@@ -4,6 +4,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
 const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox','--autoplay-policy=no-user-gesture-required','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'] })
 const p = await b.newPage()
 await p.setViewport({ width: +W, height: +H, deviceScaleFactor: 1 })
+if (process.env.PLATO) await p.evaluateOnNewDocument(pl => { try { const o = JSON.parse(localStorage.getItem('ac3d_opts') || '{}'); o.plato = pl; localStorage.setItem('ac3d_opts', JSON.stringify(o)) } catch { } }, process.env.PLATO)
 p.on('pageerror', e => console.log('PAGEERROR', e.message))
 const log = (...a) => console.log(new Date().toISOString().slice(11,19), ...a)
 const shot = async n => { await p.screenshot({ path: prefix + n }); log('shot', n) }

@@ -6,8 +6,8 @@ android {
         applicationId "com.iker.ahoracaigo3d"
         minSdk 24
         targetSdk 34
-        versionCode 6
-        versionName "1.5"
+        versionCode 7
+        versionName "1.6"
     }
     signingConfigs {
         release {
@@ -23,6 +23,6 @@ android {
             signingConfig signingConfigs.release
         }
     }
-    aaptOptions { noCompress 'mp3', 'webp', 'png' }
+    aaptOptions { noCompress 'mp3', 'webp', 'png', 'mp4' }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }

@@ -14,6 +14,7 @@ import { cons } from './concursantes';
 import { TOP } from './set3d';
 import { Q, norm } from './questions';
 import { ENTRE_TRES, ADIVINA, CENTRAL, DAME_LETRA, SI_NO } from './bancos';
+import { vayaLioQ, VAYA_LIO } from './vayalio';
 import { canvasTex } from './tex';
 import { lector, textoPregunta, textoEntreTres, textoCategoria } from './lectura';
 
@@ -35,21 +36,20 @@ export const PRUEBAS: Record<PruebaId, Prueba> = {
   adivina: { titulo: '¡ADIVINA!', lista: true, dicho: '¡Prueba Adivina! Las pistas salen una a una: el primero que lo sepa, que pulse.', jugar: (P, opp, o) => adivina(P, opp, o) },
   dameletra: { titulo: '¡DAME LETRA!', lista: true, dicho: '¡Dame letra! Pedid una letra por turnos y, si sabéis la frase, decidla entera en diez segundos.', jugar: (P, opp, o) => dameLetra(P, opp, o) },
   sino: { titulo: '¿SÍ O NO?', lista: true, dicho: '¿Sí o no? Una pregunta cada uno, cinco segundos y solo dos botones.', jugar: (P, opp, o) => siNo(P, opp, o) },
-  // pendiente del vídeo de referencia de Iker (no se elige todavía)
-  vayalio: { titulo: '¡VAYA LÍO!', lista: false, dicho: '' },
+  vayalio: { titulo: '¡VAYA LÍO!', lista: true, dicho: '¡Vaya lío! Las letras están revueltas: leed la definición y escribid la palabra bien ordenada.', jugar: (P, opp, o) => vayaLio(P, opp, o) },
 };
 export const lineasPruebas = () => Object.values(PRUEBAS).filter(p => p.lista).map(p => p.dicho);
 
 /** Plan de las 8 pruebas del programa: mezcla variada (máx. 3 Clásicos; ronda 5 = Palabra gallina si hay canciones) */
 export function planPruebas(gallina5: boolean): PruebaId[] {
   for (let tries = 0; tries < 50; tries++) {
-    const extra: PruebaId[] = ['clasico', 'entretres', 'adivina', 'dameletra', 'sino'];
-    const base: PruebaId[] = shuffle(['clasico', 'clasico', 'entretres', 'adivina', 'dameletra', 'sino', extra[Math.floor(Math.random() * 5)], extra[1 + Math.floor(Math.random() * 4)]]);
+    const extra: PruebaId[] = ['clasico', 'entretres', 'adivina', 'dameletra', 'sino', 'vayalio'];
+    const base: PruebaId[] = shuffle(['clasico', 'clasico', 'entretres', 'adivina', 'dameletra', 'sino', 'vayalio', extra[Math.floor(Math.random() * 6)]]);
     if (gallina5) { const i = base.indexOf('clasico'); base.splice(i, 1); base.splice(4, 0, 'gallina'); base.length = 8; }
     let ok = true; for (let i = 2; i < 8; i++) if (base[i] === base[i - 1] && base[i] === base[i - 2]) ok = false;
     if (ok) return base;
   }
-  return ['entretres', 'clasico', 'dameletra', 'sino', gallina5 ? 'gallina' : 'clasico', 'adivina', 'clasico', 'entretres'];
+  return ['entretres', 'clasico', 'dameletra', 'sino', gallina5 ? 'gallina' : 'clasico', 'adivina', 'vayalio', 'entretres'];
 }
 
 /** Rótulo de la prueba: cápsula naranja con letras blancas biseladas sobre fondo azul con destellos */
@@ -90,7 +90,7 @@ export async function tarjetaPrueba(c: Ctx, id: PruebaId) {
   const cv = pruebaCanvas(P.titulo); const tex = canvasTex(640, 430, g => g.drawImage(cv, 0, 0));
   const mats = eng.studio.screenMats; const old = mats.map(m => m.map);
   mats.forEach(m => { m.map = tex; m.needsUpdate = true; });
-  eng.cut(V(0, 3.1, -3.2), V(0, 3.4, -11.6)); eng.glide(V(0, 3.3, -5.6), V(0, 3.5, -11.6), 2.6);
+  { const f = eng.studio.screenFocus; eng.cut(V(0, f.y - 0.35, f.z + 8.4), V(0, f.y - 0.05, f.z)); eng.glide(V(0, f.y - 0.15, f.z + 6.0), V(0, f.y + 0.05, f.z), 2.6); }
   const ov = document.createElement('div'); ov.id = 'pruebaCard'; ov.appendChild(cv); document.getElementById('hud')!.appendChild(ov);
   audio.play('Moeda@ContagemDuelos'); W.__prueba = { id, titulo: P.titulo };
   let done = false; hud.say(P.dicho, 2600).then(() => { done = true; });
@@ -184,6 +184,15 @@ export async function entreTres(P: Programa, opp: number, o: { training?: boolea
     }
     return 'win';
   } finally { ui.remove(); splitOff(c); cams.duel(eng, opp); }
+}
+
+// ------------------------------------------------------------------ ¡VAYA LÍO! (v1.6)
+/** Pantalla partida con los dos duelistas; en las casillas, un anagrama de la respuesta y abajo la definición.
+ *  Mismas reglas que el duelo: turnos, un reloj cada uno, PASAR (comodín / sin comodín), rebote y bot. */
+export async function vayaLio(P: Programa, opp: number, o: { training?: boolean } = {}): Promise<DuelResult> {
+  const c = P.c; splitOn(c, opp); document.getElementById('splitUi')?.classList.add('vlio');
+  try { return await duelo1v1(P, opp, { ...o, gen: vayaLioQ }); }
+  finally { splitOff(c); }
 }
 
 // ------------------------------------------------------------------ ADIVINA

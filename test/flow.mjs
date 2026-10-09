@@ -5,6 +5,7 @@ const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', hea
 const p = await b.newPage()
 if (mobile === '1') await p.setUserAgent('Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36')
 await p.setViewport({ width: +W, height: +H, deviceScaleFactor: 1, isMobile: mobile === '1', hasTouch: mobile === '1', isLandscape: true })
+if (process.env.PLATO) await p.evaluateOnNewDocument(pl => { try { const o = JSON.parse(localStorage.getItem('ac3d_opts') || '{}'); o.plato = pl; localStorage.setItem('ac3d_opts', JSON.stringify(o)) } catch { } }, process.env.PLATO)
 p.on('pageerror', e => console.log('PAGEERROR', e.message))
 p.on('console', m => { if (m.type()==='error') console.log('CONSOLE', m.text()) })
 const log = (...a) => console.log(new Date().toISOString().slice(11,19), ...a)

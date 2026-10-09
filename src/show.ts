@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { lector, textoPregunta } from './lectura';
+import { lector, leerPregunta, textoPregunta } from './lectura';
 import type { Engine } from './engine';
 import { Hud, Session, fmt } from './hud';
 import { Stage2D } from './stage2d';
@@ -8,7 +8,8 @@ import { audio } from './assets';
 import { Bank, Q } from './questions';
 import { TOP } from './set3d';
 import { gesture } from './people';
-import { cabecera, despedida, CAB_MUSIC } from './intro';
+import { cabecera, despedida, CAB_MUSIC, cabOpts, cabeceraIker } from './intro';
+import { monologo, elegirMonologo, monoOpts } from './monologos';
 import { confettiBurst } from './decor';
 import { L, pick, fill } from './lines';
 import { Chistes, JokeCtx } from './jokes';
@@ -31,7 +32,7 @@ export const cams = {
   opp(e: Engine, n: number, glide = 0) {
     const o = e.studio.holes[n].pos; const c = o.clone().setY(0).normalize().negate();
     const side = V(-c.z, 0, c.x);
-    const p = o.clone().addScaledVector(c, 3.4).addScaledVector(side, 0.8).setY(TOP + 2.2); const l = o.clone().setY(TOP + 0.9);
+    const p = o.clone().addScaledVector(c, 3.4).addScaledVector(side, 0.8).setY(o.y + 2.2); const l = o.clone().setY(o.y + 0.9);
     glide ? e.glide(p, l, glide) : e.cut(p, l);
   },
   duel(e: Engine, n: number, glide = 0) {
@@ -172,7 +173,7 @@ export class Programa {
     eng.resetPositions(); eng.opps.forEach(o => o.root.visible = true);
     // ---- CABECERA ----
     eng.lights?.event('intro');
-    await cabecera(eng, hud, s, !!eng.theme.festivo);
+    if (!(cabOpts.video && !(window as any).__noCabVideo && await cabeceraIker(hud, s))) await cabecera(eng, hud, s, !!eng.theme.festivo);
     hud.hashtag(eng.theme.hashtag || '#AhoraCaigo');
     // ---- el Presentador da la bienvenida (la sintonía termina por debajo) ----
     // la música de la cabecera (la del jugador o la del .sb3) se funde al terminar la cabecera
@@ -184,6 +185,8 @@ export class Programa {
     if (!eng.theme.extra?.length) publico.aplauso(2.2, 0.55);
     for (const x of eng.theme.extra || []) { gesture(eng.host, 'habla', 2.5); await this.talk(x, 3000); publico.vitores(3); }
     if (eng.theme.festivo) { confettiBurst(eng.studio, V(-2, TOP + 2, 1)); confettiBurst(eng.studio, V(2, TOP + 2, 1)); publico.vitores(3.5); }
+    // ---- monólogo del presentador (v1.6) ----
+    if (monoOpts.on && !(window as any).__noMono) { await s.w(500); await monologo(this.c, elegirMonologo(eng.theme.id), s); cams.wide(eng); }
     // ---- presentación del concursante central ----
     nuevaPartida();
     if (cons.presentaciones) { await s.w(400); await presentarCentral(this.c); }
@@ -309,12 +312,13 @@ export class Programa {
     if (!final && !this.noVidas) showVidas(this.vidas, !!this.vidaExtra);
     let result = null as any as ('ok' | 'pasa' | 'tiempo' | null);
     panel.showPasa(final || this.vidas > 0, () => { if (!result) { result = 'pasa'; onPasa?.(); } }, 'PASAR ⏭');
-    if (q.gallina) audio.playMusic('SuspenseDuelo', true);
+    if (q.gallina && !q.cancion) audio.playMusic('SuspenseDuelo', true);
     panel.ask().then(ok => { if (ok && !result) result = 'ok'; });
     // el presentador lee la pregunta. En el Juego Final lee deprisa y el reloj de 2:00 NO se para (como en el programa);
     // en el resto el reloj arranca al terminar la lectura (se puede escribir mientras lee)
-    const lect = lector.leer(textoPregunta(q), clock ? { rapida: true, delay: 150 } : { delay: 300 });
+    const lect = leerPregunta(q, clock ? { rapida: true, delay: 150 } : { delay: 300 });
     (window as any).__lect = lect;
+    if (q.cancion) lect.done.then(() => { if (!result) audio.playMusic('SuspenseDuelo', true); });
     // reloj (como Relogio2: espera 1 s y resta 1 cada 0,98 s)
     let stopClock = () => { };
     if (!clock) {

@@ -1,6 +1,6 @@
 // Iluminación de plató controlable (estilo mesas "GLights"): Heads, LineBars, Washes y LEDs.
 import * as THREE from 'three';
-import { TABLE_R, TOP, RING_IN, RING_OUT, WALL_R, A0, A1 } from './set3d';
+import { TABLE_R, TOP, RING_IN, RING_OUT, WALL_R, A0, A1, PLATO, RING_Y, ROWS } from './set3d';
 import type { Theme } from './themes';
 
 export type GroupId = 'heads' | 'linebars' | 'washes' | 'leds';
@@ -85,6 +85,8 @@ export class LightRig {
   ledMesh!: THREE.InstancedMesh; barMesh: THREE.InstancedMesh | null = null;
   washLights: THREE.PointLight[] = [];
   eventUntil = 0; nextAuto = 0; onChange: (() => void) | null = null;
+  /** aviso de cada evento del programa (también en modo manual): el plató virtual cambia de look */
+  onEvent: ((e: string) => void) | null = null;
   /** color medio de los LEDs y de las LineBars de cada lado (0 = x<0, 1 = x>0): ilumina al público de las gradas */
   ledAvg = [new THREE.Color(), new THREE.Color()]; barAvg = [new THREE.Color(), new THREE.Color()];
   private ledSide: number[][] = [[], []];
@@ -129,8 +131,9 @@ export class LightRig {
     for (let i = 0; i < nBars; i++) {
       const side = i % 2 ? 1 : -1, k = Math.floor(i / 2), kn = Math.ceil(nBars / 2);
       const a = side * THREE.MathUtils.lerp(A0 + 0.25, A1 - 0.15, (k + 0.5) / kn);
-      const r = WALL_R - 1.25; const pos = new THREE.Vector3(Math.sin(a) * r, 0.12, Math.cos(a) * r);
-      const bar = new THREE.Group(); bar.position.copy(pos); bar.lookAt(0, 0.12, 0); this.root.add(bar);
+      const vir = PLATO === 'virtual'; const r = vir ? 6.78 : WALL_R - 1.25, by = vir ? 0.08 : 0.12;
+      const pos = new THREE.Vector3(Math.sin(a) * r, by, Math.cos(a) * r);
+      const bar = new THREE.Group(); bar.position.copy(pos); bar.lookAt(0, by, 0); this.root.add(bar);
       const body = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.1, 0.12), bodyM); bar.add(body);
       const tiltG = new THREE.Group(); bar.add(tiltG);
       const beams: THREE.BufferGeometry[] = []; const pix: number[] = [];
@@ -152,14 +155,18 @@ export class LightRig {
     const ledPts: THREE.Vector3[] = [], ledFix: number[][] = [];
     const strip = (pts: THREE.Vector3[]) => { const ids: number[] = []; for (const p of pts) { ids.push(ledPts.length); ledPts.push(p); } ledFix.push(ids); };
     const nTab = q === 'baja' ? 24 : 40;
-    for (let s = 0; s < 4; s++) { const pts: THREE.Vector3[] = []; for (let i = 0; i < nTab / 4; i++) { const a = (s + i / (nTab / 4)) / 4 * Math.PI * 2; pts.push(new THREE.Vector3(Math.sin(a) * (TABLE_R + 0.03), 0.06, Math.cos(a) * (TABLE_R + 0.03))); } strip(pts); }
-    for (const sg of [-1, 1]) for (const rr of [RING_IN - 0.03, RING_OUT + 0.05]) {
+    const vir = PLATO === 'virtual';
+    // plató virtual: borde de la tarima, borde interior y exterior del anillo y borde superior de las gradas
+    const tabY = vir ? TOP - 0.06 : 0.06, tabR = vir ? TABLE_R + 0.02 : TABLE_R + 0.03;
+    for (let s = 0; s < 4; s++) { const pts: THREE.Vector3[] = []; for (let i = 0; i < nTab / 4; i++) { const a = (s + i / (nTab / 4)) / 4 * Math.PI * 2; pts.push(new THREE.Vector3(Math.sin(a) * tabR, tabY, Math.cos(a) * tabR)); } strip(pts); }
+    for (const sg of [-1, 1]) for (const [rr, yy, side] of (vir ? [[RING_IN - 0.02, RING_Y - 0.06, false], [RING_OUT + 0.02, RING_Y - 0.06, true]] : [[RING_IN - 0.03, TOP + 0.02, false], [RING_OUT + 0.05, 0.06, true]]) as [number, number, boolean][]) {
       const pts: THREE.Vector3[] = []; const n = q === 'baja' ? 12 : 20;
-      for (let i = 0; i < n; i++) { const a = sg * THREE.MathUtils.lerp(A0 + 0.05, A1 - 0.05, i / (n - 1)); pts.push(new THREE.Vector3(Math.sin(a) * rr, rr < 6 ? TOP + 0.02 : 0.06, Math.cos(a) * rr)); }
-      if (rr > 6) this.ledSide[sg < 0 ? 0 : 1].push(...pts.map((_, i) => ledPts.length + i));
+      for (let i = 0; i < n; i++) { const a = sg * THREE.MathUtils.lerp(A0 + 0.05, A1 - 0.05, i / (n - 1)); pts.push(new THREE.Vector3(Math.sin(a) * rr, yy, Math.cos(a) * rr)); }
+      if (side) this.ledSide[sg < 0 ? 0 : 1].push(...pts.map((_, i) => ledPts.length + i));
       strip(pts);
     }
-    for (const sg of [-1, 1]) { const pts: THREE.Vector3[] = []; const n = q === 'baja' ? 12 : 22; for (let i = 0; i < n; i++) { const a = sg * THREE.MathUtils.lerp(0.5, 2.6, i / (n - 1)); pts.push(new THREE.Vector3(Math.sin(a) * (WALL_R - 0.12), 1.22, Math.cos(a) * (WALL_R - 0.12))); } this.ledSide[sg < 0 ? 0 : 1].push(...pts.map((_, i) => ledPts.length + i)); strip(pts); }
+    const wr = vir ? 11.35 : WALL_R - 0.12, wy = vir ? ROWS[ROWS.length - 1].y + 0.06 : 1.22;
+    for (const sg of [-1, 1]) { const pts: THREE.Vector3[] = []; const n = q === 'baja' ? 12 : 22; for (let i = 0; i < n; i++) { const a = sg * THREE.MathUtils.lerp(vir ? 0.4 : 0.5, 2.6, i / (n - 1)); pts.push(new THREE.Vector3(Math.sin(a) * wr, wy, Math.cos(a) * wr)); } this.ledSide[sg < 0 ? 0 : 1].push(...pts.map((_, i) => ledPts.length + i)); strip(pts); }
     this.ledMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.05, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), ledPts.length);
     this.ledMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(ledPts.length * 3), 3);
     ledPts.forEach((p, i) => { m4.makeTranslation(p.x, p.y, p.z); this.ledMesh.setMatrixAt(i, m4); });
@@ -190,6 +197,7 @@ export class LightRig {
 
   /** Eventos del programa (solo en modo AUTO) */
   event(e: 'eleccion' | 'duelo' | 'acierto' | 'caida' | 'fallo' | 'final' | 'ganador' | 'intro' | 'outro', at?: THREE.Vector3) {
+    this.onEvent?.(e);
     if (!this.auto) return;
     const all = (fn: (s: SubState, id: GroupId) => void) => { for (const id of Object.keys(this.groups) as GroupId[]) for (const s of [this.groups[id].A, this.groups[id].B]) { fn(s, id); s.t0 = this.t; } };
     const th = this.th; let dur = 3;
@@ -339,7 +347,7 @@ export class LightRig {
         const tw = Math.sqrt(thick); f.beam!.scale.set((wash ? 1.6 : 0.55) * spread * tw, wash ? 0.7 : 1, (wash ? 1.6 : 0.55) * spread * tw);
         (f.beam!.geometry as any).__t = thick;
         f.beam!.visible = s.beam !== 'NO BEAM' && f.inten > 0.01;
-        const m = f.mat!; m.uniforms.uColor.value.copy(f.color); m.uniforms.uI.value = f.inten * (wash ? 0.10 : 0.30) * Math.min(2.5, 0.6 + 0.4 * thick);
+        const m = f.mat!; m.uniforms.uColor.value.copy(f.color); m.uniforms.uI.value = f.inten * (wash ? (PLATO === 'virtual' ? 0.05 : 0.10) : 0.30) * Math.min(2.5, 0.6 + 0.4 * thick);
         m.uniforms.uGobo.value = s.beam === 'GOBO' ? 1 : 0; if (s.goboRot) m.uniforms.uRot.value += dt * 0.6 * s.cueSpeed;
         m.uniforms.uSoft.value = (wash ? 2.6 : 1.6) / Math.max(0.3, thick);
         (f.lens!.material as THREE.SpriteMaterial).color.copy(f.color).multiplyScalar(f.inten); f.lens!.scale.setScalar((wash ? 1.1 : 0.7) * (0.5 + 0.5 * f.inten));
@@ -347,11 +355,12 @@ export class LightRig {
           // mancha de luz en el suelo
           const yFloor = 0.02; const tHit = (f.pos.y - yFloor) / Math.max(0.05, -dir.y);
           const hit = f.pos.clone().addScaledVector(dir, tHit); const r = Math.hypot(hit.x, hit.z);
-          const y = r < TABLE_R ? TOP + 0.02 : yFloor; hit.addScaledVector(dir, (y - hit.y) / (dir.y || -1));
-          const ok = dir.y < -0.15 && Math.hypot(hit.x, hit.z) < WALL_R - 0.5;
+          const y = r < TABLE_R ? TOP + 0.02 : (PLATO === 'virtual' && r > RING_IN && r < RING_OUT) ? RING_Y + 0.02 : yFloor; hit.addScaledVector(dir, (y - hit.y) / (dir.y || -1));
+          const hr = Math.hypot(hit.x, hit.z);
+          const ok = dir.y < -0.15 && hr < WALL_R - 0.5 && !(PLATO === 'virtual' && ((hr > TABLE_R && hr < RING_IN) || hr > RING_OUT));
           f.pool.visible = ok && f.inten > 0.02; f.pool.position.set(hit.x, y + 0.01, hit.z);
           const rad = Math.min(5, tHit * (wash ? 0.16 : 0.05) * spread * 2 + 0.3);
-          f.pool.scale.setScalar(rad); (f.pool.material as THREE.MeshBasicMaterial).color.copy(f.color).multiplyScalar(f.inten * (wash ? 0.35 : 0.55));
+          f.pool.scale.setScalar(rad); (f.pool.material as THREE.MeshBasicMaterial).color.copy(f.color).multiplyScalar(f.inten * (wash ? (PLATO === 'virtual' ? 0.14 : 0.35) : (PLATO === 'virtual' ? 0.4 : 0.55)));
         }
         if (wash) { washCol.add(C.copy(f.color).multiplyScalar(f.inten)); washN++; }
       }

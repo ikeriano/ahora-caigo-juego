@@ -1,0 +1,32 @@
+// v1.6: cabecera de Iker (vídeo) en el Programa, opción en Opciones y salto con un toque
+import puppeteer from 'puppeteer-core'
+const [,, base = 'http://127.0.0.1:4190/', prefix = 'previews/plato-privado/final/'] = process.argv
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] })
+const p = await b.newPage(); await p.setViewport({ width: 1024, height: 576 })
+let fails = 0; const check = (ok, m) => { console.log((ok ? '  ✅ ' : '  ❌ ') + m); if (!ok) fails++ }
+p.on('pageerror', e => console.log('PAGEERROR', e.message))
+const until = async (fn, ms = 60000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await p.evaluate(fn).catch(() => false)) return true; await sleep(150) } throw new Error('timeout ' + fn) }
+const ev = (fn, ...a) => p.evaluate(fn, ...a)
+await p.goto(base + '?nosw&screen=options', { waitUntil: 'load' })
+await until(() => document.getElementById('rowCabecera'))
+check(await ev(() => document.querySelector('#rowCabecera .sel')?.dataset.v === 'iker'), 'Opciones › Cabecera: «La de Iker (vídeo)» por defecto')
+await ev(() => document.getElementById('rowCabecera').scrollIntoView({ block: 'center' })); await sleep(500)
+await p.screenshot({ path: prefix + 'opciones-cabecera.png' })
+await p.goto(base + '?nosw&screen=play', { waitUntil: 'load' })
+await until(() => !!(window.__eng && window.__eng.studio))
+await ev(() => { void window.__startMode('programa') })
+await until(() => window.__cabVideo && window.__cabVideo.estado === 'reproduciendo', 20000)
+check(true, 'el vídeo de la cabecera se reproduce a pantalla completa')
+await until(() => window.__cabVideo.el.currentTime > 9.5, 30000)
+await p.screenshot({ path: prefix + 'cabecera-iker.png' }); console.log('📸 cabecera-iker.png')
+check(await ev(() => !window.__cabVideo.el.muted && window.__cabVideo.el.volume > 0), 'suena con su audio')
+await p.mouse.click(500, 300)
+await until(() => !document.getElementById('cabVideo'), 5000)
+check(await ev(() => window.__cabVideo.estado === 'saltado'), 'un toque salta la cabecera')
+await sleep(2500); await p.screenshot({ path: prefix + 'tras-cabecera.png' })
+await until(() => window.__mono && window.__mono.paso >= 0, 30000)
+check(true, 'tras la cabecera y el saludo empieza el monólogo del presentador (' + await ev(() => window.__mono.id) + ')')
+await p.click('#btnSkip'); await until(() => window.__mono.fin, 5000)
+check(true, 'el monólogo se salta y sigue el programa')
+await b.close(); console.log(fails ? `❌ ${fails} fallos` : '✅ todo bien'); process.exit(fails ? 1 : 0)

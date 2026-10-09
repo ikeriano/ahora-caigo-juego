@@ -58,7 +58,7 @@ export async function presentarRival(c: Ctx, n: number) {
       if (l.who === 'host') camHost(c, op);
       else { // plano del oponente desde el lado del presentador
         const hp = eng.host.root.position; const d = hp.clone().sub(op).setY(0).normalize(); const side = V(-d.z, 0, d.x);
-        eng.cut(op.clone().addScaledVector(d, 3.4).addScaledVector(side, -0.7).setY(TOP + 2.0), op.clone().setY(TOP + 1.55));
+        eng.cut(op.clone().addScaledVector(d, 3.4).addScaledVector(side, -0.7).setY(op.y + 2.0), op.clone().setY(op.y + 1.55));
       }
     }, `${nombre} · ${cons.job(n)}`);
   eng.face(eng.host, V(0, 0, 8));

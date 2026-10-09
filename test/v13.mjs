@@ -3,7 +3,8 @@
 import puppeteer from 'puppeteer-core'
 import fs from 'fs'
 const [,, part = 'opciones', base = 'http://127.0.0.1:4180/', W = '844', H = '390'] = process.argv
-const PP = 'previews/publico/', PC = 'previews/concursantes/', PH = 'previews/historia/', PR = 'previews/pruebas/'
+const OUTP = process.env.OUT || 'previews/'
+const PP = OUTP + 'publico/', PC = OUTP + 'concursantes/', PH = OUTP + 'historia/', PR = OUTP + 'pruebas/'
 for (const d of [PP, PC, PH, PR]) fs.mkdirSync(d, { recursive: true })
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] })
@@ -11,6 +12,7 @@ const p = await b.newPage()
 await p.setUserAgent('Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36')
 await p.setViewport({ width: +W, height: +H, deviceScaleFactor: 1, isMobile: true, hasTouch: true, isLandscape: true })
 const errors = []
+if (process.env.PLATO) await p.evaluateOnNewDocument(pl => { try { const o = JSON.parse(localStorage.getItem('ac3d_opts') || '{}'); o.plato = pl; localStorage.setItem('ac3d_opts', JSON.stringify(o)) } catch { } }, process.env.PLATO)
 p.on('pageerror', e => { errors.push(e.message); console.log('PAGEERROR', e.message) })
 p.on('console', m => { if (m.type() === 'error' && !/favicon|404/.test(m.text())) console.log('CONSOLE', m.text()) })
 const t0 = Date.now(); const log = (...a) => console.log(((Date.now() - t0) / 1000).toFixed(1).padStart(6), ...a)
@@ -74,7 +76,7 @@ if (part === 'programa') {
   await p.goto(base + '?nosw&screen=play', { waitUntil: 'load' })
   await until(() => !!(window.__eng && window.__eng.audience))
   await ev(() => { localStorage.setItem('ac3d_concursantes', JSON.stringify({ central: 'Iker', profesion: 'youtuber', rivales: ['Paco', 'Lola', 'Ramoncín'], presentaciones: true })); window.__cons.reload() })
-  await ev(() => { window.__botForce = 'fail'; window.__botClock = 4; window.__presArg = true; window.__conEleccion = true; window.__elecBots = 'lento' })
+  await ev(() => { window.__botForce = 'fail'; window.__noCabVideo = true; window.__noMono = true; window.__botClock = 4; window.__presArg = true; window.__conEleccion = true; window.__elecBots = 'lento' })
   await ev(() => { void window.__startMode('programa') })
   // cabecera: aplausos al ritmo + planos de dron con público
   await until(() => window.__publicoLog?.some(l => /ritmo/.test(l)), 40000)
@@ -98,13 +100,14 @@ if (part === 'programa') {
   await until(() => window.__elec.fase === 'resultado', 20000)
   check(await ev(() => window.__elec.ganador === 0), 'elección del central en el programa: gana Iker (' + await ev(() => JSON.stringify(window.__elec.tiempos)) + ')')
   await goCenter()
+  await ev(() => { window.__l3 = []; const el = document.getElementById('lower3'); new MutationObserver(() => { if (el.textContent) window.__l3.push(el.textContent) }).observe(el, { childList: true, subtree: true }) })
   await pickHuella(2) // huella 3 -> Ramoncín (nombre personalizado)
   await until(() => window.__pres && !window.__pres.done && window.__pres.lineas.some(l => l.includes('Arguiñano')), 60000)
   log('rival:', JSON.stringify(await ev(() => window.__pres.lineas)))
   await until(() => window.__pres.i >= 1, 20000); await sleep(600)
   const br = await bubble(); log('bocadillo', JSON.stringify(br))
   check(br && br.who === 'Ramoncín', 'el oponente habla con su nombre en el bocadillo')
-  check(await ev(() => document.querySelector('#lower3')?.textContent.includes('Ramoncín')), 'rótulo con nombre y profesión')
+  check(await ev(() => document.querySelector('#lower3')?.textContent.includes('Ramoncín') || window.__l3.some(t => t.includes('Ramoncín'))), 'rótulo con nombre y profesión')
   await shot(PC + 'presentacion-oponente.png')
   await until(() => { const b = document.getElementById('bubble'); return !b.classList.contains('hidden') && b.textContent.includes('Arguiñano') }, 40000); await sleep(500)
   await shot(PC + 'arguinano.png')
@@ -315,7 +318,7 @@ if (part === 'presentador') {
   await shot(PS + 'historia-subtitulos.png')
   // ---- programa: bocadillos y presentaciones
   await p.goto(base + '?nosw&screen=play', { waitUntil: 'load' }); await until(() => !!(window.__eng && window.__eng.audience))
-  await ev(() => { window.__noEleccion = true; window.__presArg = false; void window.__startMode('programa') })
+  await ev(() => { window.__noEleccion = true; window.__noCabVideo = true; window.__noMono = true; window.__presArg = false; void window.__startMode('programa') })
   await sleep(2500); await p.click('#btnSkip')
   await until(() => window.__pres && window.__pres.lineas[0]?.startsWith('host') && !window.__pres.done, 90000); await sleep(700)
   const b1 = await bubble(); log('bocadillo', JSON.stringify(b1))
