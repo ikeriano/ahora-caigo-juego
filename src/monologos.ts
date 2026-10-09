@@ -214,12 +214,12 @@ export async function monologo(c: Ctx, m: Monologo, main: Session) {
   const cleanup = () => {
     seguir(false); telefono(c, false); document.getElementById('normas')?.remove();
     eng.movers = eng.movers.filter(x => x.p !== host); host.root.position.copy(home); host.root.rotation.y = homeRot; host.gesture = 0;
-    eng.renderer.domElement.removeEventListener('pointerdown', tap); voice.stop(); hud.hideBubble();
+    document.removeEventListener('pointerdown', tap, true); voice.stop(); hud.hideBubble();
     (window as any).__mono.fin = true;
   };
   // un toque en el plató (fuera del bocadillo) salta el monólogo entero; tocar el bocadillo pasa a la siguiente frase
-  const tap = () => (document.getElementById('btnSkip') as HTMLElement | null)?.click();
-  eng.renderer.domElement.addEventListener('pointerdown', tap);
+  const tap = (e: PointerEvent) => { const t = e.target as HTMLElement; if (t.closest('button, #bubble, #topbar, #menu, .ui')) return; (document.getElementById('btnSkip') as HTMLElement | null)?.click(); };
+  document.addEventListener('pointerdown', tap, true);
   try {
     await skippable(main, hud, async (s) => {
       eng.lookEvent('normal'); camHost(); eng.face(host, V(0, 0, 9));
@@ -230,10 +230,10 @@ export async function monologo(c: Ctx, m: Monologo, main: Session) {
           (window as any).__mono.baja = true; gesture(host, 'saluda', 1.4); seguir(true);
           for (const p of puntoGrada(lado)) { await s.race(eng.walkTo(host, p, 2.2)); }
           seguir(false); mirarPublico(); publico.vitores(2.5, 0.7);
-          { const p = host.root.position; eng.glide(p.clone().add(V(-lado * 2.4, 1.4, 2.6)), V(lado * 9, 1.6, p.z - 1), 1.2); }
+          { const p = host.root.position; const inn = V(-p.x, 0, -p.z).normalize(); eng.glide(p.clone().addScaledVector(inn, 3.4).add(V(-lado * 1.2, 1.5, 0)), p.clone().add(V(lado * 1.2, 1.2, 0)), 1.2); }
         }
         if (a.includes('tel')) { telefono(c, true); (window as any).__mono.tel = true; gesture(host, 'telefono', 60); camHost(2.6, 1.6, -0.7); }
-        if (rot) { norma(rot); (window as any).__mono.normas++; eng.glide(host.root.position.clone().add(V(0.4, 1.9, 4.6)), host.root.position.clone().setY(host.root.position.y + 1.2), 0.8); }
+        if (rot) { norma(rot); (window as any).__mono.normas++; const hp = host.root.position; eng.glide(V(hp.x * 0.3, hp.y + 1.7, hp.z + 3.6), hp.clone().setY(hp.y + 1.1), 0.8); }
         for (const g of ['baila', 'tropieza', 'gira', 'encoge']) if (a.includes(g)) gesture(host, g, g === 'baila' ? 3.2 : g === 'gira' ? 1.6 : g === 'tropieza' ? 1.3 : 2);
         if (!a.some(x => ['baila', 'tropieza', 'gira', 'encoge', 'tel'].includes(x)) && host.gestureType !== 'telefono') gesture(host, 'habla', 2.4);
         let done = false; hud.say(t, 2600).then(() => { done = true; });
