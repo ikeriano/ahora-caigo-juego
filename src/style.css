@@ -378,8 +378,8 @@ body.kb-open #duelBar { top: 2px; transform: translateX(-50%) scale(.85); transf
 #menu #rowPlatoLuz label, #menu .orow-wrap label { flex-basis: 100%; }
 #menu #rowPlatoLuz .tbtn, #menu .orow-wrap .tbtn { flex: 1; min-width: 0; }
 /* v1.6 «¡Vaya lío!»: casillas blancas con letras azules gruesas; al acertar se ordenan */
-.ptxt.vlio .pq { top: 40px !important; font-size: 31px; }
-.ptxt.vlio .pboxes { top: 150px !important; gap: 5px; }
+.ptxt.vlio .pq { top: 70px !important; font-size: 28px; line-height: 1.2; }
+.ptxt.vlio .pboxes { top: 162px !important; gap: 5px; }
 .ptxt.vlio .pboxes .b { font-weight: 700; color: #16307a; background: linear-gradient(#fff, #e3e8f5 70%, #c8d0e6); border: 2px solid #9fb0d8; }
 .ptxt.vlio .pboxes.vl-ok .b { color: #0b7a2c; animation: vlpop .35s ease-out; }
 @keyframes vlpop { 0% { transform: rotateY(90deg); } 100% { transform: none; } }
